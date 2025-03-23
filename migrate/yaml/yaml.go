@@ -7,8 +7,8 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/c2pc/golang-file-migrate/internal/merger"
-	"github.com/c2pc/golang-file-migrate/internal/url"
+	"github.com/c2pc/config-migrate/internal/merger"
+	"github.com/c2pc/config-migrate/internal/url"
 	migration "github.com/golang-migrate/migrate/v4/database"
 	"github.com/pkg/errors"
 	lockedFile "github.com/rogpeppe/go-internal/lockedfile"

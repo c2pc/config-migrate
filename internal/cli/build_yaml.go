@@ -1,5 +1,5 @@
 package cli
 
 import (
-	_ "github.com/c2pc/golang-file-migrate/migrate/yaml"
+	_ "github.com/c2pc/config-migrate/migrate/yaml"
 )

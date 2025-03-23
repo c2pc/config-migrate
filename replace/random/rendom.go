@@ -3,7 +3,7 @@ package random
 import (
 	"crypto/rand"
 
-	"github.com/c2pc/golang-file-migrate/internal/replacer"
+	"github.com/c2pc/config-migrate/internal/replacer"
 )
 
 const letters = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz!@()_+-=."

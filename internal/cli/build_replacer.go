@@ -4,7 +4,7 @@
 package cli
 
 import (
-	_ "github.com/c2pc/golang-file-migrate/replace/ip"
-	_ "github.com/c2pc/golang-file-migrate/replace/project_name"
-	_ "github.com/c2pc/golang-file-migrate/replace/random"
+	_ "github.com/c2pc/config-migrate/replace/ip"
+	_ "github.com/c2pc/config-migrate/replace/project_name"
+	_ "github.com/c2pc/config-migrate/replace/random"
 )

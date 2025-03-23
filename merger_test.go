@@ -1,4 +1,4 @@
-package migrate
+package config_migrate
 
 import (
 	"encoding/json"

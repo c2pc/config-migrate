@@ -3,7 +3,7 @@ package merger
 import (
 	"reflect"
 
-	"github.com/c2pc/golang-file-migrate/internal/replacer"
+	"github.com/c2pc/config-migrate/internal/replacer"
 )
 
 func Merge(new, old map[string]interface{}) map[string]interface{} {

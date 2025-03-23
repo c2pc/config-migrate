@@ -1,1 +1,1 @@
-# golang-file-migrate
+# config-migrate

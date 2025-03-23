@@ -1,4 +1,4 @@
-module github.com/c2pc/golang-file-migrate
+module github.com/c2pc/config-migrate
 
 go 1.23.7
 

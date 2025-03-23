@@ -1,7 +1,7 @@
-package migrate
+package config_migrate
 
 import (
-	"github.com/c2pc/golang-file-migrate/internal/replacer"
+	"github.com/c2pc/config-migrate/internal/replacer"
 )
 
 func RegisterReplacer(name string, fn func() string) {

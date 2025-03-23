@@ -5,7 +5,7 @@ import (
 	"path"
 	"regexp"
 
-	"github.com/c2pc/golang-file-migrate/internal/replacer"
+	"github.com/c2pc/config-migrate/internal/replacer"
 )
 
 func init() {
