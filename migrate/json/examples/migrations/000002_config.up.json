@@ -1,0 +1,10 @@
+{
+  "str": "str",
+  "number": 1,
+  "boolean": true,
+  "map": {
+    "map_str": "map_str",
+    "map_number": 2,
+    "map_boolean": false
+  }
+}

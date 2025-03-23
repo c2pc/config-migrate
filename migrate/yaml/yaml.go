@@ -1,8 +1,8 @@
 package yaml
 
 import (
-	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"strings"
 	"sync"
@@ -14,6 +14,8 @@ import (
 	lockedFile "github.com/rogpeppe/go-internal/lockedfile"
 	"gopkg.in/yaml.v3"
 )
+
+const DefaultPerm fs.FileMode = 0666
 
 type version struct {
 	Version int  `yaml:"version"`
@@ -27,6 +29,7 @@ func init() {
 
 type Config struct {
 	Path string
+	Perm fs.FileMode
 }
 
 type Yaml struct {
@@ -48,9 +51,15 @@ func New(config *Config) (*Yaml, error) {
 		return nil, err
 	}
 
+	perm := DefaultPerm
+	if config.Perm != 0 {
+		perm = config.Perm
+	}
+
 	yml := &Yaml{
 		config: &Config{
 			Path: path,
+			Perm: perm,
 		},
 	}
 
@@ -60,7 +69,7 @@ func New(config *Config) (*Yaml, error) {
 // Open returns a new driver instance configured with parameters
 // coming from the URL string. Migrate will call this function
 // only once per instance.
-func (y *Yaml) Open(filePath string) (migration.Driver, error) {
+func (m *Yaml) Open(filePath string) (migration.Driver, error) {
 	js, err := New(&Config{Path: filePath})
 	if err != nil {
 		return nil, err
@@ -69,37 +78,41 @@ func (y *Yaml) Open(filePath string) (migration.Driver, error) {
 	return js, nil
 }
 
-// Close closes the underlying database instance managed by the driver.
+// Close closes the underlying file instance managed by the driver.
 // Migrate will call this function only once per instance.
-func (y *Yaml) Close() error {
-	return y.lockedFile.Close()
+func (m *Yaml) Close() error {
+	if m.lockedFile != nil {
+		return m.lockedFile.Close()
+	}
+
+	return nil
 }
 
-// Lock should acquire a database lock so that only one migration process
+// Lock should acquire a file lock so that only one migration process
 // can run at a time. Migrate will call this function before Run is called.
 // If the implementation can't provide this functionality, return nil.
-// Return database.ErrLocked if database is already locked.
-func (y *Yaml) Lock() error {
-	f, err := lockedFile.OpenFile(y.config.Path, os.O_RDWR|os.O_CREATE, 0666)
+// Return file.ErrLocked if file is already locked.
+func (m *Yaml) Lock() error {
+	f, err := lockedFile.OpenFile(m.config.Path, os.O_RDWR|os.O_CREATE, m.config.Perm)
 	if err != nil {
 		return err
 	}
-	y.mu.Lock()
+	m.mu.Lock()
 
-	y.lockedFile = f
+	m.lockedFile = f
 
 	return nil
 }
 
 // Unlock should release the lock. Migrate will call this function after
 // all migrations have been run.
-func (y *Yaml) Unlock() error {
-	y.mu.Unlock()
-	return y.Close()
+func (m *Yaml) Unlock() error {
+	m.mu.Unlock()
+	return m.Close()
 }
 
-// Run applies a migration to the database. migration is guaranteed to be not nil.
-func (y *Yaml) Run(migration io.Reader) error {
+// Run applies a migration to the file. migration is guaranteed to be not nil.
+func (m *Yaml) Run(migration io.Reader) error {
 	migrData, err := io.ReadAll(migration)
 	if err != nil {
 		return err
@@ -110,18 +123,18 @@ func (y *Yaml) Run(migration io.Reader) error {
 		return errors.Wrapf(err, "failed to parse migration file")
 	}
 
-	if _, err = y.lockedFile.Seek(0, 0); err != nil {
+	if _, err = m.lockedFile.Seek(0, 0); err != nil {
 		return err
 	}
 
-	fileData, err := io.ReadAll(y.lockedFile)
+	fileData, err := io.ReadAll(m.lockedFile)
 	if err != nil {
 		return err
 	}
 
 	fileMap := map[string]interface{}{}
 	if err := yaml.Unmarshal(fileData, &fileMap); err != nil {
-		return errors.Wrapf(err, "failed to parse %s", y.config.Path)
+		return errors.Wrapf(err, "failed to parse %s", m.config.Path)
 	}
 
 	base := map[string]interface{}{}
@@ -137,16 +150,16 @@ func (y *Yaml) Run(migration io.Reader) error {
 	newData := strings.ReplaceAll(string(data), "'", "")
 	newData = strings.ReplaceAll(newData, "null", "")
 
-	err = y.lockedFile.Truncate(0)
+	err = m.lockedFile.Truncate(0)
 	if err != nil {
 		return err
 	}
 
-	if _, err = y.lockedFile.Seek(0, 0); err != nil {
+	if _, err = m.lockedFile.Seek(0, 0); err != nil {
 		return err
 	}
 
-	_, err = y.lockedFile.Write([]byte(newData))
+	_, err = m.lockedFile.Write([]byte(newData))
 	if err != nil {
 		return err
 	}
@@ -157,23 +170,23 @@ func (y *Yaml) Run(migration io.Reader) error {
 // SetVersion saves version and dirty state.
 // Migrate will call this function before and after each call to Run.
 // version must be >= -1. -1 means NilVersion.
-func (y *Yaml) SetVersion(version int, dirty bool) error {
-	if _, err := y.lockedFile.Seek(0, 0); err != nil {
+func (m *Yaml) SetVersion(version int, dirty bool) error {
+	if _, err := m.lockedFile.Seek(0, 0); err != nil {
 		return err
 	}
 
-	fileData, err := io.ReadAll(y.lockedFile)
+	fileData, err := io.ReadAll(m.lockedFile)
 	if err != nil {
 		return err
 	}
 
 	fileMap := map[string]interface{}{}
 	if err := yaml.Unmarshal(fileData, &fileMap); err != nil {
-		return errors.Wrapf(err, "failed to parse %s", y.config.Path)
+		return errors.Wrapf(err, "failed to parse %s", m.config.Path)
 	}
 
-	delete(fileMap, "version")
-	delete(fileMap, "force")
+	fileMap["version"] = version
+	fileMap["force"] = dirty
 
 	data, err := yaml.Marshal(fileMap)
 	if err != nil {
@@ -182,22 +195,16 @@ func (y *Yaml) SetVersion(version int, dirty bool) error {
 
 	newData := strings.ReplaceAll(string(data), "null", "")
 
-	if len(fileMap) == 0 {
-		newData = ""
-	}
-
-	newData = fmt.Sprintf("version: %v\nforce: %v\n", version, dirty) + newData
-
-	err = y.lockedFile.Truncate(0)
+	err = m.lockedFile.Truncate(0)
 	if err != nil {
 		return err
 	}
 
-	if _, err = y.lockedFile.Seek(0, 0); err != nil {
+	if _, err = m.lockedFile.Seek(0, 0); err != nil {
 		return err
 	}
 
-	_, err = y.lockedFile.Write([]byte(newData))
+	_, err = m.lockedFile.Write([]byte(newData))
 	if err != nil {
 		return err
 	}
@@ -205,15 +212,15 @@ func (y *Yaml) SetVersion(version int, dirty bool) error {
 	return nil
 }
 
-// Version returns the currently active version and if the database is dirty.
+// Version returns the currently active version and if the file is dirty.
 // When no migration has been applied, it must return version -1.
 // Dirty means, a previous migration failed and user interaction is required.
-func (y *Yaml) Version() (int, bool, error) {
-	if _, err := y.lockedFile.Seek(0, 0); err != nil {
+func (m *Yaml) Version() (int, bool, error) {
+	if _, err := m.lockedFile.Seek(0, 0); err != nil {
 		return 0, false, err
 	}
 
-	r, err := io.ReadAll(y.lockedFile)
+	r, err := io.ReadAll(m.lockedFile)
 	if err != nil {
 		return 0, false, err
 	}
@@ -234,16 +241,16 @@ func (y *Yaml) Version() (int, bool, error) {
 	return v.Version, v.Force, nil
 }
 
-// Drop deletes everything in the database.
+// Drop deletes everything in the file.
 // Note that this is a breaking action, a new call to Open() is necessary to
 // ensure subsequent calls work as expected.
-func (y *Yaml) Drop() error {
-	err := y.lockedFile.Truncate(0)
+func (m *Yaml) Drop() error {
+	err := m.lockedFile.Truncate(0)
 	if err != nil {
 		return err
 	}
 
-	if _, err = y.lockedFile.Seek(0, 0); err != nil {
+	if _, err = m.lockedFile.Seek(0, 0); err != nil {
 		return err
 	}
 

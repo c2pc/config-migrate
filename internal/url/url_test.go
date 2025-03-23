@@ -37,7 +37,7 @@ func TestParseURL(t *testing.T) {
 		},
 		{
 			name:     "Parse invalid URL",
-			url:      "\asd\asd",
+			url:      "1http://foo.com",
 			expected: "",
 			wantErr:  true,
 		},

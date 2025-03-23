@@ -2,8 +2,8 @@ package json
 
 import (
 	"encoding/json"
-	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"sync"
 
@@ -14,14 +14,7 @@ import (
 	lockedFile "github.com/rogpeppe/go-internal/lockedfile"
 )
 
-const emptyFileTemplate = `{
-    "version": %v,
-    "force": %v
-    `
-
-const nonEmptyFileTemplate = `{
-    "version": %v,
-    "force": %v,`
+const DefaultPerm fs.FileMode = 0666
 
 type version struct {
 	Version int  `json:"version"`
@@ -35,6 +28,7 @@ func init() {
 
 type Config struct {
 	Path string
+	Perm fs.FileMode
 }
 
 type Json struct {
@@ -56,9 +50,15 @@ func New(config *Config) (*Json, error) {
 		return nil, err
 	}
 
+	perm := DefaultPerm
+	if config.Perm != 0 {
+		perm = config.Perm
+	}
+
 	js := &Json{
 		config: &Config{
 			Path: path,
+			Perm: perm,
 		},
 	}
 
@@ -68,7 +68,7 @@ func New(config *Config) (*Json, error) {
 // Open returns a new driver instance configured with parameters
 // coming from the URL string. Migrate will call this function
 // only once per instance.
-func (j *Json) Open(filePath string) (migration.Driver, error) {
+func (m *Json) Open(filePath string) (migration.Driver, error) {
 	js, err := New(&Config{Path: filePath})
 	if err != nil {
 		return nil, err
@@ -77,37 +77,41 @@ func (j *Json) Open(filePath string) (migration.Driver, error) {
 	return js, nil
 }
 
-// Close closes the underlying database instance managed by the driver.
+// Close closes the underlying file instance managed by the driver.
 // Migrate will call this function only once per instance.
-func (j *Json) Close() error {
-	return j.lockedFile.Close()
+func (m *Json) Close() error {
+	if m.lockedFile != nil {
+		return m.lockedFile.Close()
+	}
+
+	return nil
 }
 
-// Lock should acquire a database lock so that only one migration process
+// Lock should acquire a file lock so that only one migration process
 // can run at a time. Migrate will call this function before Run is called.
 // If the implementation can't provide this functionality, return nil.
-// Return database.ErrLocked if database is already locked.
-func (j *Json) Lock() error {
-	f, err := lockedFile.OpenFile(j.config.Path, os.O_RDWR|os.O_CREATE, 0666)
+// Return file.ErrLocked if file is already locked.
+func (m *Json) Lock() error {
+	f, err := lockedFile.OpenFile(m.config.Path, os.O_RDWR|os.O_CREATE, 0666)
 	if err != nil {
 		return err
 	}
-	j.mu.Lock()
+	m.mu.Lock()
 
-	j.lockedFile = f
+	m.lockedFile = f
 
 	return nil
 }
 
 // Unlock should release the lock. Migrate will call this function after
 // all migrations have been run.
-func (j *Json) Unlock() error {
-	j.mu.Unlock()
-	return j.Close()
+func (m *Json) Unlock() error {
+	m.mu.Unlock()
+	return m.Close()
 }
 
-// Run applies a migration to the database. migration is guaranteed to be not nil.
-func (j *Json) Run(migration io.Reader) error {
+// Run applies a migration to the file. migration is guaranteed to be not nil.
+func (m *Json) Run(migration io.Reader) error {
 	migrData, err := io.ReadAll(migration)
 	if err != nil {
 		return err
@@ -118,11 +122,11 @@ func (j *Json) Run(migration io.Reader) error {
 		return errors.Wrapf(err, "failed to parse migration file")
 	}
 
-	if _, err = j.lockedFile.Seek(0, 0); err != nil {
+	if _, err = m.lockedFile.Seek(0, 0); err != nil {
 		return err
 	}
 
-	fileData, err := io.ReadAll(j.lockedFile)
+	fileData, err := io.ReadAll(m.lockedFile)
 	if err != nil {
 		return err
 	}
@@ -133,7 +137,7 @@ func (j *Json) Run(migration io.Reader) error {
 
 	fileMap := map[string]interface{}{}
 	if err := json.Unmarshal(fileData, &fileMap); err != nil {
-		return errors.Wrapf(err, "failed to parse %s", j.config.Path)
+		return errors.Wrapf(err, "failed to parse %s", m.config.Path)
 	}
 
 	base := map[string]interface{}{}
@@ -147,16 +151,16 @@ func (j *Json) Run(migration io.Reader) error {
 		return err
 	}
 
-	err = j.lockedFile.Truncate(0)
+	err = m.lockedFile.Truncate(0)
 	if err != nil {
 		return err
 	}
 
-	if _, err = j.lockedFile.Seek(0, 0); err != nil {
+	if _, err = m.lockedFile.Seek(0, 0); err != nil {
 		return err
 	}
 
-	_, err = j.lockedFile.Write(data)
+	_, err = m.lockedFile.Write(data)
 	if err != nil {
 		return err
 	}
@@ -167,12 +171,12 @@ func (j *Json) Run(migration io.Reader) error {
 // SetVersion saves version and dirty state.
 // Migrate will call this function before and after each call to Run.
 // version must be >= -1. -1 means NilVersion.
-func (j *Json) SetVersion(version int, dirty bool) error {
-	if _, err := j.lockedFile.Seek(0, 0); err != nil {
+func (m *Json) SetVersion(version int, dirty bool) error {
+	if _, err := m.lockedFile.Seek(0, 0); err != nil {
 		return err
 	}
 
-	fileData, err := io.ReadAll(j.lockedFile)
+	fileData, err := io.ReadAll(m.lockedFile)
 	if err != nil {
 		return err
 	}
@@ -183,52 +187,43 @@ func (j *Json) SetVersion(version int, dirty bool) error {
 
 	fileMap := map[string]interface{}{}
 	if err := json.Unmarshal(fileData, &fileMap); err != nil {
-		return errors.Wrapf(err, "failed to parse %s", j.config.Path)
+		return errors.Wrapf(err, "failed to parse %s", m.config.Path)
 	}
 
-	if version >= 0 || (version == migration.NilVersion && dirty) {
-		delete(fileMap, "version")
-		delete(fileMap, "force")
+	fileMap["version"] = version
+	fileMap["force"] = dirty
 
-		data, err := json.MarshalIndent(fileMap, "", "    ")
-		if err != nil {
-			return err
-		}
+	data, err := json.MarshalIndent(fileMap, "", "    ")
+	if err != nil {
+		return err
+	}
 
-		newData := string(data)
-		if len(fileMap) == 0 {
-			newData = fmt.Sprintf(emptyFileTemplate, version, dirty) + newData[1:]
-		} else {
-			newData = fmt.Sprintf(nonEmptyFileTemplate, version, dirty) + newData[1:]
-		}
+	err = m.lockedFile.Truncate(0)
+	if err != nil {
+		return err
+	}
 
-		err = j.lockedFile.Truncate(0)
-		if err != nil {
-			return err
-		}
+	if _, err = m.lockedFile.Seek(0, 0); err != nil {
+		return err
+	}
 
-		if _, err = j.lockedFile.Seek(0, 0); err != nil {
-			return err
-		}
-
-		_, err = j.lockedFile.Write([]byte(newData))
-		if err != nil {
-			return err
-		}
+	_, err = m.lockedFile.Write([]byte(data))
+	if err != nil {
+		return err
 	}
 
 	return nil
 }
 
-// Version returns the currently active version and if the database is dirty.
+// Version returns the currently active version and if the file is dirty.
 // When no migration has been applied, it must return version -1.
 // Dirty means, a previous migration failed and user interaction is required.
-func (j *Json) Version() (int, bool, error) {
-	if _, err := j.lockedFile.Seek(0, 0); err != nil {
+func (m *Json) Version() (int, bool, error) {
+	if _, err := m.lockedFile.Seek(0, 0); err != nil {
 		return 0, false, err
 	}
 
-	r, err := io.ReadAll(j.lockedFile)
+	r, err := io.ReadAll(m.lockedFile)
 	if err != nil {
 		return 0, false, err
 	}
@@ -249,16 +244,16 @@ func (j *Json) Version() (int, bool, error) {
 	return v.Version, v.Force, nil
 }
 
-// Drop deletes everything in the database.
+// Drop deletes everything in the file.
 // Note that this is a breaking action, a new call to Open() is necessary to
 // ensure subsequent calls work as expected.
-func (j *Json) Drop() error {
-	err := j.lockedFile.Truncate(0)
+func (m *Json) Drop() error {
+	err := m.lockedFile.Truncate(0)
 	if err != nil {
 		return err
 	}
 
-	if _, err = j.lockedFile.Seek(0, 0); err != nil {
+	if _, err = m.lockedFile.Seek(0, 0); err != nil {
 		return err
 	}
 
