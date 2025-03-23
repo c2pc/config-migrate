@@ -7,7 +7,7 @@ import (
 	"os"
 	"sync"
 
-	"github.com/c2pc/golang-file-migrate/internal/merge"
+	"github.com/c2pc/golang-file-migrate/internal/merger"
 	"github.com/c2pc/golang-file-migrate/internal/url"
 	migration "github.com/golang-migrate/migrate/v4/database"
 	"github.com/pkg/errors"
@@ -137,7 +137,7 @@ func (j *Json) Run(migration io.Reader) error {
 	}
 
 	base := map[string]interface{}{}
-	base = merge.Merge(migrMap, fileMap)
+	base = merger.Merge(migrMap, fileMap)
 
 	delete(base, "version")
 	delete(base, "force")

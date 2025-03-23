@@ -22,7 +22,7 @@ func ParseURL(url string) (string, error) {
 			return "", err
 		}
 		p = wd
-	} else if p[0:1] != "/" {
+	} else if !filepath.IsAbs(p) {
 		abs, err := filepath.Abs(p)
 		if err != nil {
 			return "", err

@@ -8,16 +8,8 @@ import (
 var replacersMu sync.RWMutex
 var replacers = make(map[string]func() string)
 
-func init() {
-	replacersMu.Lock()
-	defer replacersMu.Unlock()
-	for name, replacer := range defaultReplacers {
-		replacers[name] = replacer
-	}
-}
-
-// RegisterReplacer globally registers a replacer.
-func RegisterReplacer(name string, replacer func() string) {
+// Register globally registers a replacer.
+func Register(name string, replacer func() string) {
 	replacersMu.Lock()
 	defer replacersMu.Unlock()
 	if replacer == nil {
@@ -30,7 +22,6 @@ func RegisterReplacer(name string, replacer func() string) {
 }
 
 func Replace(value string) string {
-	newValue := value
 	for name, replacer := range replacers {
 		index := strings.Index(value, name)
 		if index != -1 {
@@ -38,5 +29,5 @@ func Replace(value string) string {
 		}
 	}
 
-	return newValue
+	return value
 }
