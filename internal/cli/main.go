@@ -70,8 +70,8 @@ func Main() {
 
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr,
-			`Usage: migrate OPTIONS COMMAND [arg...]
-       migrate [ -version | -help ]
+			`Usage: migrator OPTIONS COMMAND [arg...]
+       migrator [ -version | -help ]
 
 Options:
   -source          Location of the migrations (driver://url)
@@ -111,7 +111,7 @@ File drivers: `+strings.Join(database.List(), ", ")+"\n", createUsage, gotoUsage
 		*sourcePtr = fmt.Sprintf("file://%v", *pathPtr)
 	}
 
-	// initialize migrate
+	// initialize migrator
 	// don't catch migraterErr here and let each command decide
 	// how it wants to handle the error
 	migrater, migraterErr := migrate.New(*sourcePtr, *filePtr)

@@ -5,11 +5,13 @@ import (
 	"sync"
 )
 
+type Replacer func() string
+
 var replacersMu sync.RWMutex
-var replacers = make(map[string]func() string)
+var replacers = make(map[string]Replacer)
 
 // Register globally registers a replacer.
-func Register(name string, replacer func() string) {
+func Register(name string, replacer Replacer) {
 	replacersMu.Lock()
 	defer replacersMu.Unlock()
 	if replacer == nil {

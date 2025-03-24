@@ -50,7 +50,7 @@ func TestReplace(t *testing.T) {
 			expected: "some_string-TEST_STRING-some_string",
 		},
 		{
-			name:     "No replace",
+			name:     "No replacer",
 			value:    "some_string__some_string",
 			expected: "some_string__some_string",
 		},

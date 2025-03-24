@@ -1,22 +1,24 @@
-package json
+package yaml
 
 import (
-	"encoding/json"
 	"fmt"
 	"io"
 	"os"
 	"testing"
 
-	"github.com/c2pc/config-migrate/internal/url"
+	"github.com/c2pc/config-migrate/config"
+	"github.com/c2pc/config-migrate/internal/migrator"
 	"github.com/golang-migrate/migrate/v4"
+	"github.com/golang-migrate/migrate/v4/database"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
+	"gopkg.in/yaml.v3"
 )
 
-const configPath = "./examples/config.json"
+const configPath = "./examples/config.yaml"
 const migrationsPath = "./examples/migrations"
 
 func getConfigURL() string {
-	return fmt.Sprintf("json://%s", configPath)
+	return fmt.Sprintf("yaml://%s", configPath)
 }
 
 func getSourceURL() string {
@@ -24,7 +26,7 @@ func getSourceURL() string {
 }
 
 func readConfigFile(path string) (map[string]interface{}, error) {
-	f, err := os.OpenFile(path, os.O_RDONLY, DefaultPerm)
+	f, err := os.OpenFile(path, os.O_RDONLY, migrator.DefaultPerm)
 	if err != nil {
 		return nil, err
 	}
@@ -40,7 +42,7 @@ func readConfigFile(path string) (map[string]interface{}, error) {
 	}
 
 	fileMap := map[string]interface{}{}
-	if err = json.Unmarshal(fileData, &fileMap); err != nil {
+	if err = yaml.Unmarshal(fileData, &fileMap); err != nil {
 		return nil, err
 	}
 
@@ -48,7 +50,7 @@ func readConfigFile(path string) (map[string]interface{}, error) {
 }
 
 func convertMapToJsonString(m map[string]interface{}) (string, error) {
-	res, err := json.Marshal(m)
+	res, err := yaml.Marshal(m)
 	if err != nil {
 		return "", err
 	}
@@ -66,55 +68,12 @@ func readConfigFileAndConvert(path string) (string, error) {
 }
 
 func TestNew(t *testing.T) {
-	_, err := New(nil)
-	if err == nil {
-		t.Fatal("expected an error when calling New with empty config")
-	}
-
-	_, err = New(&Config{Path: ""})
-	if err == nil {
-		t.Fatal("expected an error when calling New with empty path")
-	}
-
-	_, err = New(&Config{Path: "1http://foo.com"})
-	if err == nil {
-		t.Fatal("expected an error when calling New with invalid path")
-	}
-
-	y, err := New(&Config{Path: getSourceURL(), Perm: 0777})
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	path, err := url.ParseURL(getSourceURL())
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if y.config.Path != path {
-		t.Fatal("path does not match")
-	}
-
-	if y.config.Perm != 0777 {
-		t.Fatal("perm does not match")
-	}
-
-	y, err = New(&Config{Path: getSourceURL()})
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if y.config.Path != path {
-		t.Fatal("path does not match")
-	}
-
-	if y.config.Perm != DefaultPerm {
-		t.Fatal("perm does not match")
-	}
+	var _ database.Driver
+	_ = New(config.Settings{})
 }
 
 func TestOpen(t *testing.T) {
-	y := Json{}
+	y := New(config.Settings{})
 
 	_, err := y.Open("1http://foo.com")
 	if err == nil {
@@ -130,17 +89,9 @@ func TestOpen(t *testing.T) {
 func TestLock_Unlock(t *testing.T) {
 	defer os.Remove(configPath)
 
-	y, err := New(&Config{Path: getConfigURL()})
-	if err != nil {
-		t.Fatal(err)
-	}
+	y := New(config.Settings{})
 
-	y.config.Path = "1http://foo.com"
-	if err := y.Lock(); err == nil {
-		t.Fatal("expected an error when calling Lock with invalid path")
-	}
-
-	y, err = New(&Config{Path: getConfigURL()})
+	_, err := y.Open(getConfigURL())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -149,15 +100,11 @@ func TestLock_Unlock(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if y.lockedFile == nil {
-		t.Fatal("expected a locked file")
-	}
-
 	if err := y.Unlock(); err != nil {
 		t.Fatal(err)
 	}
 
-	_, err = readConfigFile(y.config.Path)
+	_, err = readConfigFile(configPath)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -166,22 +113,10 @@ func TestLock_Unlock(t *testing.T) {
 func TestLock_Close(t *testing.T) {
 	defer os.Remove(configPath)
 
-	y, err := New(&Config{Path: getConfigURL()})
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if err := y.Close(); err != nil {
-		t.Fatal(err)
-	}
+	y := New(config.Settings{Path: configPath})
 
 	if err := y.Lock(); err != nil {
 		t.Fatal(err)
-	}
-	defer y.mu.Unlock()
-
-	if y.lockedFile == nil {
-		t.Fatal("expected a locked file")
 	}
 
 	if err := y.Close(); err != nil {
@@ -224,6 +159,13 @@ func TestUp1(t *testing.T) {
 	if result != expected {
 		t.Errorf("Expected: %s, got: %s", expected, result)
 	}
+
+	m, err = migrate.New(getSourceURL(), getConfigURL())
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	defer m.Close()
 
 	v, f, err := m.Version()
 	if err != nil {
@@ -280,6 +222,13 @@ func TestUp2(t *testing.T) {
 	if result != expected {
 		t.Errorf("Expected: %s, got: %s", expected, result)
 	}
+
+	m, err = migrate.New(getSourceURL(), getConfigURL())
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	defer m.Close()
 
 	v, f, err := m.Version()
 	if err != nil {
@@ -350,6 +299,13 @@ func TestUp3(t *testing.T) {
 		t.Errorf("Expected:\n %s, got:\n %s", expected, result)
 	}
 
+	m, err = migrate.New(getSourceURL(), getConfigURL())
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	defer m.Close()
+
 	v, f, err := m.Version()
 	if err != nil {
 		t.Error(err)
@@ -380,7 +336,7 @@ func TestUp3_Invalid_Config_File(t *testing.T) {
 	}
 
 	err = func() error {
-		f, err := os.OpenFile(configPath, os.O_WRONLY, DefaultPerm)
+		f, err := os.OpenFile(configPath, os.O_WRONLY, migrator.DefaultPerm)
 		if err != nil {
 			return err
 		}
@@ -456,6 +412,13 @@ func TestUp4_Invalid_Migration_File(t *testing.T) {
 		t.Errorf("Expected: %s, got: %s", expected, result)
 	}
 
+	m, err = migrate.New(getSourceURL(), getConfigURL())
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	defer m.Close()
+
 	v, f, err := m.Version()
 	if err != nil {
 		t.Error(err)
@@ -468,5 +431,41 @@ func TestUp4_Invalid_Migration_File(t *testing.T) {
 
 	if f != true {
 		t.Errorf("Expected: %t, got: %t", true, f)
+	}
+}
+
+func TestDrop(t *testing.T) {
+	defer os.Remove(configPath)
+
+	m, err := migrate.New(getSourceURL(), getConfigURL())
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	if err := m.Steps(2); err != nil {
+		t.Error(err)
+		return
+	}
+
+	if err := m.Drop(); err != nil {
+		t.Error(err)
+		return
+	}
+
+	result, err := readConfigFileAndConvert(configPath)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	expected, err := convertMapToJsonString(map[string]interface{}{})
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	if result != expected {
+		t.Errorf("Expected: %s, got: %s", expected, result)
 	}
 }

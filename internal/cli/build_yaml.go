@@ -1,5 +1,5 @@
 package cli
 
 import (
-	_ "github.com/c2pc/config-migrate/migrate/yaml"
+	_ "github.com/c2pc/config-migrate/config/yaml"
 )

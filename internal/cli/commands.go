@@ -15,9 +15,9 @@ import (
 )
 
 var (
-	errInvalidSequenceWidth     = errors.New("Digits must be positive")
-	errIncompatibleSeqAndFormat = errors.New("The seq and format options are mutually exclusive")
-	errInvalidTimeFormat        = errors.New("Time format may not be empty")
+	errInvalidSequenceWidth     = errors.New("digits must be positive")
+	errIncompatibleSeqAndFormat = errors.New("the seq and format options are mutually exclusive")
+	errInvalidTimeFormat        = errors.New("time format may not be empty")
 )
 
 func nextSeqVersion(matches []string, seqDigits int) (string, error) {

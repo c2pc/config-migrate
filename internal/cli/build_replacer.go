@@ -4,7 +4,7 @@
 package cli
 
 import (
-	_ "github.com/c2pc/config-migrate/replace/ip"
-	_ "github.com/c2pc/config-migrate/replace/project_name"
-	_ "github.com/c2pc/config-migrate/replace/random"
+	_ "github.com/c2pc/config-migrate/replacer/ip"
+	_ "github.com/c2pc/config-migrate/replacer/project_name"
+	_ "github.com/c2pc/config-migrate/replacer/random"
 )

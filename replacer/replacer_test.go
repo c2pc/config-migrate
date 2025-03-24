@@ -1,4 +1,4 @@
-package config_migrate
+package replacer
 
 import (
 	"testing"

@@ -50,7 +50,7 @@ func mergeMaps(new, old map[string]interface{}) map[string]interface{} {
 							//otherwise a old one is assigned
 							if newValueArray2Map, newValueArrayOK2Map := newValueArray[0].(map[string]interface{}); newValueArrayOK2Map {
 								//Create a new migration results map for array elements
-								newMap := []map[string]interface{}{}
+								var newMap []map[string]interface{}
 								for i, newValueArrayValue := range oldValueArray {
 									//If interface of value is map[string]interface{},
 									//otherwise the element is skipped
@@ -66,7 +66,7 @@ func mergeMaps(new, old map[string]interface{}) map[string]interface{} {
 								//Add new array to results map
 								out[oldKey] = newMap
 							} else {
-								//Add pld value to results map with replace
+								//Add pld value to results map with replacer
 								out[oldKey] = oldValue
 							}
 						}
