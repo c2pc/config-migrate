@@ -1,9 +1,35 @@
 package replacer
 
-import "github.com/c2pc/config-migrate/internal/replacer"
+import (
+	"strings"
+	"sync"
+)
 
 type Replacer func() string
 
-func RegisterReplacer(name string, fn Replacer) {
-	replacer.Register(name, replacer.Replacer(fn))
+var replacersMu sync.RWMutex
+var replacers = make(map[string]Replacer)
+
+// Register globally registers a replacer.
+func Register(name string, replacer Replacer) {
+	replacersMu.Lock()
+	defer replacersMu.Unlock()
+	if replacer == nil {
+		panic("Register replacer is nil")
+	}
+	if _, dup := replacers[name]; dup {
+		panic("Register called twice for replacer " + name)
+	}
+	replacers[name] = replacer
+}
+
+func Replace(value string) string {
+	for name, replacer := range replacers {
+		index := strings.Index(value, name)
+		if index != -1 {
+			value = strings.Replace(value, name, replacer(), -1)
+		}
+	}
+
+	return value
 }

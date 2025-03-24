@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"github.com/c2pc/config-migrate/config"
-	"github.com/c2pc/config-migrate/internal/migrator"
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/golang-migrate/migrate/v4/database"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
@@ -26,7 +25,7 @@ func getSourceURL() string {
 }
 
 func readConfigFile(path string) (map[string]interface{}, error) {
-	f, err := os.OpenFile(path, os.O_RDONLY, migrator.DefaultPerm)
+	f, err := os.OpenFile(path, os.O_RDONLY, config.DefaultPerm)
 	if err != nil {
 		return nil, err
 	}
@@ -336,7 +335,7 @@ func TestUp3_Invalid_Config_File(t *testing.T) {
 	}
 
 	err = func() error {
-		f, err := os.OpenFile(configPath, os.O_WRONLY, migrator.DefaultPerm)
+		f, err := os.OpenFile(configPath, os.O_WRONLY, config.DefaultPerm)
 		if err != nil {
 			return err
 		}

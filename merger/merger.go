@@ -3,12 +3,14 @@ package merger
 import (
 	"reflect"
 
-	"github.com/c2pc/config-migrate/internal/replacer"
+	"github.com/c2pc/config-migrate/replacer"
 )
 
 func Merge(new, old map[string]interface{}) map[string]interface{} {
 	delete(old, "force")
+	delete(new, "force")
 	delete(old, "version")
+	delete(new, "version")
 	return mergeMaps(new, old)
 }
 

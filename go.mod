@@ -6,7 +6,7 @@ require (
 	github.com/golang-migrate/migrate/v4 v4.18.2
 	github.com/pkg/errors v0.9.1
 	github.com/rogpeppe/go-internal v1.14.1
-	github.com/stretchr/testify v1.9.0
+	github.com/stretchr/testify v1.10.0
 	gopkg.in/yaml.v3 v3.0.1
 )
 

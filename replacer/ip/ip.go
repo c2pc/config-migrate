@@ -3,7 +3,7 @@ package ip
 import (
 	"net"
 
-	"github.com/c2pc/config-migrate/internal/replacer"
+	"github.com/c2pc/config-migrate/replacer"
 )
 
 func init() {

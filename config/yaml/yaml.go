@@ -2,7 +2,6 @@ package yaml
 
 import (
 	"github.com/c2pc/config-migrate/config"
-	"github.com/c2pc/config-migrate/internal/migrator"
 	"github.com/golang-migrate/migrate/v4/database"
 	"gopkg.in/yaml.v3"
 )
@@ -11,12 +10,11 @@ type Yaml struct {
 }
 
 func init() {
-	j := migrator.New(&Yaml{}, migrator.Config{})
-	database.Register("yaml", j)
+	config.Register("yaml", &Yaml{}, config.Settings{})
 }
 
 func New(cfg config.Settings) database.Driver {
-	return migrator.New(&Yaml{}, migrator.Config(cfg))
+	return config.New(&Yaml{}, cfg)
 }
 
 func (m Yaml) Unmarshal(bytes []byte, i interface{}) error {
@@ -34,7 +32,7 @@ type version struct {
 
 func (m Yaml) Version(bytes []byte) (int, bool, error) {
 	v := new(version)
-	if err := yaml.Unmarshal(bytes, v); err != nil {
+	if err := m.Unmarshal(bytes, v); err != nil {
 		return 0, false, err
 	}
 

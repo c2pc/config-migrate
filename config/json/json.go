@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 
 	"github.com/c2pc/config-migrate/config"
-	"github.com/c2pc/config-migrate/internal/migrator"
 	"github.com/golang-migrate/migrate/v4/database"
 )
 
@@ -12,12 +11,11 @@ type Json struct {
 }
 
 func init() {
-	m := migrator.New(&Json{}, migrator.Config{})
-	database.Register("json", m)
+	config.Register("json", &Json{}, config.Settings{})
 }
 
 func New(cfg config.Settings) database.Driver {
-	return migrator.New(&Json{}, migrator.Config(cfg))
+	return config.New(&Json{}, cfg)
 }
 
 func (m Json) Unmarshal(bytes []byte, i interface{}) error {
@@ -38,7 +36,7 @@ type version struct {
 
 func (m Json) Version(bytes []byte) (int, bool, error) {
 	v := new(version)
-	if err := json.Unmarshal(bytes, v); err != nil {
+	if err := m.Unmarshal(bytes, v); err != nil {
 		return 0, false, err
 	}
 
