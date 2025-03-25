@@ -14,29 +14,23 @@ import (
 	lockedFile "github.com/rogpeppe/go-internal/lockedfile"
 )
 
-const DefaultPerm fs.FileMode = 0666
-
-type Settings struct {
-	Path string
-	Perm fs.FileMode
-}
-
-type Driver interface {
-	Unmarshal([]byte, interface{}) error
-	Marshal(interface{}) ([]byte, error)
-	Version([]byte) (int, bool, error)
-	EmptyData() []byte
-}
-
+// Config represents the core struct used to manage config-based migrations.
+// It contains a driver for reading/writing config data and a locked file to prevent concurrent access.
 type Config struct {
-	driver     Driver
-	lockedFile *lockedFile.File
-	mu         sync.Mutex
-	path       string
-	perm       fs.FileMode
+	driver     Driver           // Custom config driver implementing (Un)Marshal and Version logic
+	lockedFile *lockedFile.File // File handle with locking to avoid race conditions
+	mu         sync.Mutex       // Mutex to synchronize file access
+	path       string           // Path to the configuration file
+	perm       fs.FileMode      // File permissions
 }
 
+// New returns a new instance of the config driver using the given settings.
 func New(driver Driver, cfg Settings) database.Driver {
+	path, err := url.ParseURL(cfg.Path)
+	if err != nil {
+		panic(err)
+	}
+
 	perm := DefaultPerm
 	if cfg.Perm != 0 {
 		perm = cfg.Perm
@@ -44,18 +38,14 @@ func New(driver Driver, cfg Settings) database.Driver {
 
 	yml := &Config{
 		driver: driver,
-		path:   cfg.Path,
+		path:   path,
 		perm:   perm,
 	}
 
 	return yml
 }
 
-func Register(name string, driver Driver, cfg Settings) {
-	m := New(driver, cfg)
-	database.Register(name, m)
-}
-
+// Open sets the file path from a URL and returns the current instance.
 func (m *Config) Open(filePath string) (database.Driver, error) {
 	path, err := url.ParseURL(filePath)
 	if err != nil {
@@ -66,6 +56,7 @@ func (m *Config) Open(filePath string) (database.Driver, error) {
 	return m, nil
 }
 
+// Close closes the locked file if open.
 func (m *Config) Close() error {
 	if err := m.lockedFile.Close(); err != nil {
 		return err
@@ -74,6 +65,7 @@ func (m *Config) Close() error {
 	return nil
 }
 
+// Lock opens the file with locking and stores the handle for later operations.
 func (m *Config) Lock() error {
 	f, err := lockedFile.OpenFile(m.path, os.O_RDWR|os.O_CREATE, m.perm)
 	if err != nil {
@@ -86,22 +78,27 @@ func (m *Config) Lock() error {
 	return nil
 }
 
+// Unlock releases the mutex and closes the locked file.
 func (m *Config) Unlock() error {
 	m.mu.Unlock()
 	return m.Close()
 }
 
+// Run applies a migration by reading the migration data and merging it with existing config data.
 func (m *Config) Run(migration io.Reader) error {
+	// Read migration file content
 	migrData, err := io.ReadAll(migration)
 	if err != nil {
 		return err
 	}
 
+	// Unmarshal migration data into a map
 	migrMap := map[string]interface{}{}
 	if err := m.driver.Unmarshal(migrData, &migrMap); err != nil {
 		return errors.Wrapf(err, "failed to parse migration file")
 	}
 
+	// Reset file cursor and read existing file content
 	if _, err = m.lockedFile.Seek(0, 0); err != nil {
 		return err
 	}
@@ -111,24 +108,30 @@ func (m *Config) Run(migration io.Reader) error {
 		return err
 	}
 
+	// Unmarshal current file into map
 	fileMap := map[string]interface{}{}
 	if err := m.driver.Unmarshal(fileData, &fileMap); err != nil {
 		return errors.Wrapf(err, "failed to parse %s", m.path)
 	}
 
-	base := map[string]interface{}{}
-	base = merger.Merge(migrMap, fileMap)
+	// Merge current config and migration changes
+	base := merger.Merge(migrMap, fileMap)
 
+	// Remove migration-specific metadata
 	delete(base, "version")
 	delete(base, "force")
 
+	// Marshal merged data to bytes
 	data, err := m.driver.Marshal(base)
 	if err != nil {
 		return err
 	}
+
+	// Clean up unwanted values in output
 	newData := strings.ReplaceAll(string(data), "'", "")
 	newData = strings.ReplaceAll(newData, "null", "")
 
+	// Truncate and overwrite the file with new content
 	err = m.lockedFile.Truncate(0)
 	if err != nil {
 		return err
@@ -139,13 +142,10 @@ func (m *Config) Run(migration io.Reader) error {
 	}
 
 	_, err = m.lockedFile.Write([]byte(newData))
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return err
 }
 
+// SetVersion updates the current config file with version and dirty (force) flags.
 func (m *Config) SetVersion(version int, dirty bool) error {
 	if _, err := m.lockedFile.Seek(0, 0); err != nil {
 		return err
@@ -161,6 +161,7 @@ func (m *Config) SetVersion(version int, dirty bool) error {
 		return errors.Wrapf(err, "failed to parse %s", m.path)
 	}
 
+	// Set versioning fields
 	fileMap["version"] = version
 	fileMap["force"] = dirty
 
@@ -171,6 +172,7 @@ func (m *Config) SetVersion(version int, dirty bool) error {
 
 	newData := strings.ReplaceAll(string(data), "null", "")
 
+	// Truncate and overwrite with updated version
 	err = m.lockedFile.Truncate(0)
 	if err != nil {
 		return err
@@ -181,16 +183,14 @@ func (m *Config) SetVersion(version int, dirty bool) error {
 	}
 
 	_, err = m.lockedFile.Write([]byte(newData))
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return err
 }
 
+// Version reads and returns the current migration version and dirty flag.
 func (m *Config) Version() (int, bool, error) {
 	if _, err := m.lockedFile.Seek(0, 0); err != nil {
 		if errors.Is(err, fs.ErrClosed) {
+			// If file is closed, reopen and lock it
 			if err := m.Lock(); err != nil {
 				return 0, false, err
 			}
@@ -225,6 +225,7 @@ func (m *Config) Version() (int, bool, error) {
 	return version, force, nil
 }
 
+// Drop resets the config file by truncating it and writing empty/default content.
 func (m *Config) Drop() error {
 	err := m.lockedFile.Truncate(0)
 	if err != nil {
