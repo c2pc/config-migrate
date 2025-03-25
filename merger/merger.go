@@ -52,30 +52,30 @@ func mergeMaps(new, old map[string]interface{}) map[string]interface{} {
 							//otherwise a old one is assigned
 							if newValueArray2Map, newValueArrayOK2Map := newValueArray[0].(map[string]interface{}); newValueArrayOK2Map {
 								//Create a new migration results map for array elements
-								var newMap []map[string]interface{}
+								var newArrayMap []map[string]interface{}
 								for i, newValueArrayValue := range oldValueArray {
 									//If interface of value is map[string]interface{},
 									//otherwise the element is skipped
 									if oldValueArray2Map, oldValueArrayOK2Map := newValueArrayValue.(map[string]interface{}); oldValueArrayOK2Map {
 										//Run merger for maps
-										newMap = append(newMap, mergeMaps(newValueArray2Map, oldValueArray2Map))
+										newArrayMap = append(newArrayMap, mergeMaps(newValueArray2Map, oldValueArray2Map))
 									} else {
 										if i < len(newValueArray) {
-											newMap = append(newMap, newValueArray2Map)
+											newArrayMap = append(newArrayMap, mergeMaps(newValueArray2Map, newValueArray2Map))
 										}
 									}
 								}
 								//Add new array to results map
-								out[oldKey] = newMap
+								out[oldKey] = newArrayMap
 							} else {
 								//Add pld value to results map with replacer
-								out[oldKey] = oldValue
+								out[oldKey] = replace(oldValue)
 							}
 						}
 					} else
 					//If the types of the new and old values are equal use old value
 					if reflect.TypeOf(newValue) == reflect.TypeOf(oldValue) {
-						out[oldKey] = oldValue
+						out[oldKey] = replace(oldValue)
 					} else
 					//If old value is empty,
 					//otherwise a new one is assigned
@@ -94,16 +94,16 @@ func replace(value interface{}) interface{} {
 	if str, ok := value.(string); ok {
 		return replacer.Replace(str)
 	} else if strArray, ok := value.([]interface{}); ok {
-		var newArray []interface{}
-		for _, val := range strArray {
-			if str, ok := val.(string); ok {
-				newArray = append(newArray, replacer.Replace(str))
-			} else {
-				newArray = append(newArray, val)
-			}
+		newArray := make([]interface{}, len(strArray))
+		for k, val := range strArray {
+			newArray[k] = replace(val)
 		}
-
 		return newArray
+	} else if m, ok := value.(map[string]interface{}); ok {
+		for k, val := range m {
+			m[k] = replace(val)
+		}
+		return m
 	}
 
 	return value

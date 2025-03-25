@@ -1,0 +1,33 @@
+http:
+  host: ___ip_address___
+  port: 8052
+
+log:
+  compress: false
+  debug: production
+  dir: /var/log/___project_name___
+  max_age: 28
+  max_backups: 5
+  max_size: 20
+
+auth:
+  access_token_ttl: 15
+  key: ___random64___
+  refresh_token_ttl: 540
+
+db:
+  dsn: postgres:postgres@___ip_address___:5432/postgres?sslmode=disable
+  max_idle_conn: 10
+  max_open_conn: 100
+
+redis:
+  address:
+    - localhost:6379
+  cluster_mode: false
+  db: 1
+  max_retry: 10
+  password:
+  username:
+
+salt:
+  password: ___random32___

@@ -1,0 +1,11 @@
+http:
+  host: ___ip_address___
+  port: 8052
+
+log:
+  compress: false
+  debug: production
+  dir: /var/log/___project_name___
+  max_age: 28
+  max_backups: 5
+  max_size: 20
