@@ -250,7 +250,7 @@ The final config might look like this:
 ```
 
 ---
-### Migration 2
+### Migration 3
 
 If you want to remove some data, you must create the next migration version.
 
