@@ -16,8 +16,12 @@ import (
 const configPath = "./examples/config.yaml"
 const migrationsPath = "./examples/migrations"
 
-func getConfigURL() string {
-	return fmt.Sprintf("yaml://%s", configPath)
+func getConfig() database.Driver {
+	return New(config.Settings{
+		Path:                    configPath,
+		Perm:                    0777,
+		UnableToReplaceComments: true,
+	})
 }
 
 func getSourceURL() string {
@@ -90,7 +94,7 @@ func TestLock_Unlock(t *testing.T) {
 
 	y := New(config.Settings{})
 
-	_, err := y.Open(getConfigURL())
+	_, err := y.Open("yaml://" + configPath)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -126,7 +130,7 @@ func TestLock_Close(t *testing.T) {
 func TestUp1(t *testing.T) {
 	defer os.Remove(configPath)
 
-	m, err := migrate.New(getSourceURL(), getConfigURL())
+	m, err := migrate.NewWithDatabaseInstance(getSourceURL(), "yaml", getConfig())
 	if err != nil {
 		t.Error(err)
 		return
@@ -159,13 +163,6 @@ func TestUp1(t *testing.T) {
 		t.Errorf("Expected: %s, got: %s", expected, result)
 	}
 
-	m, err = migrate.New(getSourceURL(), getConfigURL())
-	if err != nil {
-		t.Error(err)
-		return
-	}
-	defer m.Close()
-
 	v, f, err := m.Version()
 	if err != nil {
 		t.Error(err)
@@ -184,7 +181,7 @@ func TestUp1(t *testing.T) {
 func TestUp2(t *testing.T) {
 	defer os.Remove(configPath)
 
-	m, err := migrate.New(getSourceURL(), getConfigURL())
+	m, err := migrate.NewWithDatabaseInstance(getSourceURL(), "yaml", getConfig())
 	if err != nil {
 		t.Error(err)
 		return
@@ -222,13 +219,6 @@ func TestUp2(t *testing.T) {
 		t.Errorf("Expected: %s, got: %s", expected, result)
 	}
 
-	m, err = migrate.New(getSourceURL(), getConfigURL())
-	if err != nil {
-		t.Error(err)
-		return
-	}
-	defer m.Close()
-
 	v, f, err := m.Version()
 	if err != nil {
 		t.Error(err)
@@ -247,7 +237,7 @@ func TestUp2(t *testing.T) {
 func TestUp3(t *testing.T) {
 	defer os.Remove(configPath)
 
-	m, err := migrate.New(getSourceURL(), getConfigURL())
+	m, err := migrate.NewWithDatabaseInstance(getSourceURL(), "yaml", getConfig())
 	if err != nil {
 		t.Error(err)
 		return
@@ -298,12 +288,74 @@ func TestUp3(t *testing.T) {
 		t.Errorf("Expected:\n %s, got:\n %s", expected, result)
 	}
 
-	m, err = migrate.New(getSourceURL(), getConfigURL())
+	v, f, err := m.Version()
 	if err != nil {
 		t.Error(err)
 		return
 	}
-	defer m.Close()
+
+	if v != 3 {
+		t.Errorf("Expected: %d, got: %d", 3, v)
+	}
+
+	if f != false {
+		t.Errorf("Expected: %t, got: %t", false, f)
+	}
+}
+
+func TestUp3_Comments(t *testing.T) {
+	defer os.Remove(configPath)
+
+	m, err := migrate.NewWithDatabaseInstance(getSourceURL(), "yaml", getConfig())
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	if err := m.Steps(3); err != nil {
+		t.Error(err)
+		return
+	}
+
+	result, err := readConfigFileAndConvert(configPath)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	expected, err := convertMapToJsonString(map[string]interface{}{
+		"version": 3,
+		"force":   false,
+		"array": []map[string]interface{}{
+			{
+				"map_array_boolean": []bool{true, false, true},
+				"map_array_number":  []int{1, 2, 3},
+				"map_array_str":     []string{"str1", "str2", "str3"},
+				"map_boolean":       false,
+				"map_number":        2,
+				"map_str":           "map_str",
+			},
+			{
+				"map_array_boolean": []bool{false, true, false},
+				"map_array_number":  []int{4, 5, 6},
+				"map_array_str":     []string{"str4", "str5", "str6"},
+				"map_boolean":       false,
+				"map_number":        2,
+				"map_str":           "map_str2",
+			},
+		},
+		"array2": []int{1, 2, 3},
+		"array3": []string{"str1", "str2", "str3"},
+		"array4": []bool{true, false, true},
+	})
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	if result != expected {
+		t.Errorf("Expected:\n %s, got:\n %s", expected, result)
+	}
 
 	v, f, err := m.Version()
 	if err != nil {
@@ -323,7 +375,7 @@ func TestUp3(t *testing.T) {
 func TestUp3_Invalid_Config_File(t *testing.T) {
 	defer os.Remove(configPath)
 
-	m, err := migrate.New(getSourceURL(), getConfigURL())
+	m, err := migrate.NewWithDatabaseInstance(getSourceURL(), "yaml", getConfig())
 	if err != nil {
 		t.Error(err)
 		return
@@ -360,7 +412,7 @@ func TestUp3_Invalid_Config_File(t *testing.T) {
 func TestUp4_Invalid_Migration_File(t *testing.T) {
 	defer os.Remove(configPath)
 
-	m, err := migrate.New(getSourceURL(), getConfigURL())
+	m, err := migrate.NewWithDatabaseInstance(getSourceURL(), "yaml", getConfig())
 	if err != nil {
 		t.Error(err)
 		return
@@ -411,13 +463,6 @@ func TestUp4_Invalid_Migration_File(t *testing.T) {
 		t.Errorf("Expected: %s, got: %s", expected, result)
 	}
 
-	m, err = migrate.New(getSourceURL(), getConfigURL())
-	if err != nil {
-		t.Error(err)
-		return
-	}
-	defer m.Close()
-
 	v, f, err := m.Version()
 	if err != nil {
 		t.Error(err)
@@ -436,7 +481,7 @@ func TestUp4_Invalid_Migration_File(t *testing.T) {
 func TestDrop(t *testing.T) {
 	defer os.Remove(configPath)
 
-	m, err := migrate.New(getSourceURL(), getConfigURL())
+	m, err := migrate.NewWithDatabaseInstance(getSourceURL(), "yaml", getConfig())
 	if err != nil {
 		t.Error(err)
 		return

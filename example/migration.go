@@ -4,7 +4,8 @@ import (
 	"embed"
 	"errors"
 
-	_ "github.com/c2pc/config-migrate/config/yaml"
+	migrator "github.com/c2pc/config-migrate/config"
+	"github.com/c2pc/config-migrate/config/yaml"
 	_ "github.com/c2pc/config-migrate/replacer/ip"
 	_ "github.com/c2pc/config-migrate/replacer/project_name"
 	_ "github.com/c2pc/config-migrate/replacer/random"
@@ -32,7 +33,37 @@ func runMigration(path string) error {
 	if err := m.Up(); errors.Is(err, migrate.ErrNoChange) {
 		return nil
 	} else if err != nil {
-		return err // Возвращаем ошибку, если что-то пошло не так
+		return err
+	}
+
+	return nil
+}
+
+func runMigration2(path string) error {
+	//Enable to replace comments
+	yamlMigr := yaml.New(migrator.Settings{
+		Path:                    path,
+		Perm:                    0777,
+		UnableToReplaceComments: true,
+	})
+
+	//Using iofs as a source
+	d, err := iofs.New(fs, "migrations")
+	if err != nil {
+		return err
+	}
+
+	//Create yaml migration
+	m, err := migrate.NewWithInstance("iofs", d, "yaml", yamlMigr)
+	if err != nil {
+		return err
+	}
+
+	//Run migrations
+	if err := m.Up(); errors.Is(err, migrate.ErrNoChange) {
+		return nil
+	} else if err != nil {
+		return err
 	}
 
 	return nil

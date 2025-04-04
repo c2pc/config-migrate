@@ -17,11 +17,12 @@ import (
 // Config represents the core struct used to manage config-based migrations.
 // It contains a driver for reading/writing config data and a locked file to prevent concurrent access.
 type Config struct {
-	driver     Driver           // Custom config driver implementing (Un)Marshal and Version logic
-	lockedFile *lockedFile.File // File handle with locking to avoid race conditions
-	mu         sync.Mutex       // Mutex to synchronize file access
-	path       string           // Path to the configuration file
-	perm       fs.FileMode      // File permissions
+	driver                  Driver           // Custom config driver implementing (Un)Marshal and Version logic
+	lockedFile              *lockedFile.File // File handle with locking to avoid race conditions
+	mu                      sync.Mutex       // Mutex to synchronize file access
+	path                    string           // Path to the configuration file
+	perm                    fs.FileMode      // File permissions
+	unableToReplaceComments bool             //True if some comments could be replaced
 }
 
 // New returns a new instance of the config driver using the given settings.
@@ -36,17 +37,19 @@ func New(driver Driver, cfg Settings) database.Driver {
 		perm = cfg.Perm
 	}
 
-	yml := &Config{
-		driver: driver,
-		path:   path,
-		perm:   perm,
+	m := &Config{
+		driver:                  driver,
+		path:                    path,
+		perm:                    perm,
+		unableToReplaceComments: cfg.UnableToReplaceComments,
 	}
 
-	return yml
+	return m
 }
 
 // Open sets the file path from a URL and returns the current instance.
 func (m *Config) Open(filePath string) (database.Driver, error) {
+
 	path, err := url.ParseURL(filePath)
 	if err != nil {
 		return nil, err
@@ -122,7 +125,7 @@ func (m *Config) Run(migration io.Reader) error {
 	delete(base, "force")
 
 	// Marshal merged data to bytes
-	data, err := m.driver.Marshal(base)
+	data, err := m.driver.Marshal(base, false)
 	if err != nil {
 		return err
 	}
@@ -165,7 +168,7 @@ func (m *Config) SetVersion(version int, dirty bool) error {
 	fileMap["version"] = version
 	fileMap["force"] = dirty
 
-	data, err := m.driver.Marshal(fileMap)
+	data, err := m.driver.Marshal(fileMap, m.unableToReplaceComments)
 	if err != nil {
 		return err
 	}
