@@ -1,33 +1,76 @@
+http___comment___: HTTP server configuration
 http:
+  host___comment___: The IP address the HTTP server will bind to
   host: ___ip_address___
+
+  port___comment___: The port the HTTP server will listen on
   port: 8052
 
+log___comment___: Logging configuration
 log:
+  compress___comment___: Whether to compress rotated log files
   compress: false
+
+  debug___comment___: Logging level (e.g., debug, info, production)
   debug: production
+
+  dir___comment___: Directory where log files will be stored
   dir: /var/log/___project_name___
+
+  max_age___comment___: Number of days to keep old log files
   max_age: 28
+
+  max_backups___comment___: Number of rotated log files to keep
   max_backups: 5
+
+  max_size___comment___: Maximum size (in MB) of a log file before it gets rotated
   max_size: 20
 
+auth___comment___: Authentication and token settings
 auth:
+  access_token_ttl___comment___: Access token time-to-live in minutes
   access_token_ttl: 15
+
+  key___comment___: Secret key for signing tokens
   key: ___random64___
+
+  refresh_token_ttl___comment___: Refresh token time-to-live in minutes
   refresh_token_ttl: 540
 
+db___comment___: Database connection configuration
 db:
+  dsn___comment___: PostgreSQL DSN connection string
   dsn: postgres:postgres@___ip_address___:5432/postgres?sslmode=disable
+
+  max_idle_conn___comment___: Maximum number of idle database connections
   max_idle_conn: 10
+
+  max_open_conn___comment___: Maximum number of open database connections
   max_open_conn: 100
 
+redis___comment___: Redis configuration
 redis:
+  address___comment___: Redis server address list
   address:
     - localhost:6379
+
+  cluster_mode___comment___: Enable Redis cluster mode
   cluster_mode: false
+
+  db___comment___: Redis database index
   db: 1
+
+  max_retry___comment___: Maximum number of retry attempts
+  max_retry___comment___2: for failed Redis commands
   max_retry: 10
+
+  password___comment___: Redis password (optional)
   password:
+
+  username___comment___: Redis username (optional, for ACL-enabled Redis)
   username:
 
+salt___comment___: Salt used for password hashing
 salt:
+  password___comment___: Salt value used to hash user passwords
   password: ___random32___

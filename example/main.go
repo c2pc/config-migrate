@@ -10,7 +10,7 @@ const configPath = "config.yaml"
 
 func main() {
 	//Run config migrations
-	if err := runMigration(configPath); err != nil {
+	if err := runMigration2(configPath); err != nil {
 		log.Fatalf("Error running migration: %s", err)
 	}
 

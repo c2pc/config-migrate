@@ -166,143 +166,121 @@ These placeholders will be replaced automatically when configs are processed dur
 Use replacers when you want to inject dynamic values (like IPs, ports, timestamps, environment info) into your config files at the time of applying a migration.
 
 
-## Writing Migrations
+## Comments
 
-Migrations are simple config fragments that get merged into the main config file.
+you can enable comment replacer in settings `UnableToReplaceComments: true`
+```go
+package main
 
-### Migration 1
+import (
+	"embed"
+	"errors"
 
-Example JSON migration file (`0001_create_config_file.up.json`):
+	migrator "github.com/c2pc/config-migrate/config"
+	"github.com/c2pc/config-migrate/config/yaml"
+	"github.com/golang-migrate/migrate/v4"
+	"github.com/golang-migrate/migrate/v4/source/iofs"
+)
 
+//go:embed migrations/*.yml
+var fs embed.FS
+
+func runMigration(path string) error {
+	//Enable to replace comments
+	yamlMigr := yaml.New(migrator.Settings{
+		Path:                    path,
+		Perm:                    0777,
+		UnableToReplaceComments: true,
+	})
+
+	//Using iofs as a source
+	d, err := iofs.New(fs, "migrations")
+	if err != nil {
+		return err
+	}
+
+	//Create yaml migration
+	m, err := migrate.NewWithInstance("iofs", d, "yaml", yamlMigr)
+	if err != nil {
+		return err
+	}
+
+	//Run migrations
+	if err := m.Up(); errors.Is(err, migrate.ErrNoChange) {
+		return nil
+	} else if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+```
+
+
+### YAML
+You can add comments to your parameters. Add suffix `___comment___` to parameter name 
+```yaml
+http___comment___: HTTP server configuration
+http___comment___1: HTTP server configuration2
+http___comment___2: HTTP server configuration3
+http:
+  host___comment___: The IP address the server will bind to
+  host: ___ip_address___
+
+  port___comment___: The port the server will listen on
+  port: 8052
+```
+
+As a result we get
+```yaml
+# HTTP server configuration
+# HTTP server configuration2
+# HTTP server configuration3
+http:
+  # The IP address the server will bind to
+  host: ___ip_address___
+
+  # The port the server will listen on
+  port: 8052
+```
+
+### JSON
+You can add comments to your parameters. Add suffix `___comment___` to parameter name. If there are several comments, please indicate the number at the end. 
 ```json
 {
+  "http___comment___": "HTTP server configuration",
+  "http___comment___1": "HTTP server configuration2",
+  "http___comment___8": "HTTP server configuration3",
   "http": {
+    "host___comment___": "The IP address the server will bind to",
     "host": "___ip_address___",
-    "port": 8080
+
+    "port___comment___": "The port the server will listen on",
+    "port": 8052
   }
 }
 ```
 
-Down migration (`0001_create_config_file.down.json`):
-
-```json
-{}
-```
-Once the migration runs, the final config might look like this:
+As a result we get
 ```json
 {
+  "____http": "HTTP server configuration",
+  "_____http": "HTTP server configuration2",
+  "____________http": "HTTP server configuration3",
   "http": {
-    "host": "192.168.1.10",
-    "port": 8080
-  }
-}
-```
-
----
-### Migration 2
-
-If you want to add more data, you must create the next migration version.
-
-Example JSON migration file (`0002_add_log_to_config_file.up.json`):
-
-```json
-{
-  "http": {
+    "____host": "The IP address the server will bind to",
     "host": "___ip_address___",
-    "port": 8080
-  },
-  "log": {
-    "compress": true,
-    "dir": "/var/log/___project_name___",
-    "max_age": 28,
-    "max_backups": 4,
-    "max_size": 10
+
+    "____port": "The port the server will listen on",
+    "port": 8052
   }
 }
 ```
 
-Down migration (`0002_add_log_to_config_file.down.json`):
 
-```json
-{
-  "http": {
-    "host": "___ip_address___",
-    "port": 8080
-  }
-}
-```
+### Examples
 
-The final config might look like this:
-```json
-{
-  "http": {
-    "host": "192.168.1.10",
-    "port": 8080
-  },
-  "log": {
-    "compress": true,
-    "dir": "/var/log/MyGolangProject",
-    "max_age": 28,
-    "max_backups": 4,
-    "max_size": 10
-  }
-}
-```
-
----
-### Migration 3
-
-If you want to remove some data, you must create the next migration version.
-
-Example JSON migration file (`0003_delete_http_and_add_grpc_to_config_file.up.json`):
-
-```json
-{
-  "log": {
-    "compress": true,
-    "dir": "/var/log/___project_name___",
-    "max_age": 28,
-    "max_backups": 4,
-    "max_size": 10
-  },
-  "grpc": {
-    "host": "localhost",
-    "port": 5005
-  }
-}
-```
-
-Down migration (`0003_delete_http_and_add_grpc_to_config_file.down.json`):
-
-```json
-{
-  "http": {
-    "host": "192.168.1.10",
-    "port": 8080
-  },
-  "log": {
-    "compress": true,
-    "dir": "/var/log/MyGolangProject",
-    "max_age": 28,
-    "max_backups": 4,
-    "max_size": 10
-  }
-}
-```
-
-The final config might look like this:
-```json
-{
-  "log": {
-    "compress": true,
-    "dir": "/var/log/MyGolangProject",
-    "max_age": 28,
-    "max_backups": 4,
-    "max_size": 10
-  },
-  "grpc": {
-    "host": "localhost",
-    "port": 5005
-  }
-}
-```
+* [JSON](config/json/examples/migrations) - JSON migrations with replacers and comments
+* [YAML](config/yaml/examples/migrations) - YAML migrations with replacers and comments
+* [EXAMPLE](example) - Example application with YAML migrations
