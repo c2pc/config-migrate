@@ -33,3 +33,7 @@ func Replace(value string) string {
 
 	return value
 }
+
+func HasReplacers() bool {
+	return len(replacers) > 0
+}
