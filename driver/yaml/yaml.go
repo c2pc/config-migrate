@@ -7,7 +7,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/c2pc/config-migrate/config"
+	"github.com/c2pc/config-migrate/driver"
 	"github.com/golang-migrate/migrate/v4/database"
 	"gopkg.in/yaml.v3"
 )
@@ -34,7 +34,7 @@ func (m Yaml) Marshal(i interface{}, replaceComments bool) ([]byte, error) {
 	}
 
 	if replaceComments {
-		re := regexp.MustCompile(`^(\s*)(.*)` + config.CommentSuffix + `\d*:\s*(.*)$`)
+		re := regexp.MustCompile(`^(\s*)(.*)` + config.CommentSuffix + `:\s*(.*)$`)
 
 		scanner := bufio.NewScanner(bytes.NewBuffer(b))
 		var result []string
@@ -47,8 +47,11 @@ func (m Yaml) Marshal(i interface{}, replaceComments bool) ([]byte, error) {
 				comment := matches[3]
 				if len(result) > 0 {
 					for c := len(result) - 1; c >= 0; c-- {
-						com := fmt.Sprintf("%s# %s", indent, comment)
-						if strings.Contains(result[c], key+":") {
+						var com string
+						if comment != "" && comment != "null" {
+							com = fmt.Sprintf("%s# %s", indent, comment)
+						}
+						if strings.Contains(result[c], strings.TrimRight(key, "_")+":") {
 							if c == 0 {
 								result = append([]string{com}, result...)
 							} else if c == len(result)-1 {

@@ -5,12 +5,12 @@
 ## Configs
 
 Config drivers apply migrations to configuration files instead of traditional databases.  
-[Want to add a new config driver?](config/driver.go)
+[Want to add a new config driver?](driver/driver.go)
 
 Currently supported config drivers:
 
-* [JSON](config/json)
-* [YAML](config/yaml)
+* [JSON](driver/json)
+* [YAML](driver/yaml)
 
 ## Why use `config-migrate`?
 
@@ -56,7 +56,7 @@ go get github.com/c2pc/config-migrate
 ```go
 import (
     "github.com/golang-migrate/migrate/v4"
-    _ "github.com/c2pc/config-migrate/config/json"
+    _ "github.com/c2pc/config-migrate/driver/json"
     _ "github.com/golang-migrate/migrate/v4/source/github"
 )
 
@@ -78,19 +78,19 @@ func main() {
 ```go
 import (
     "github.com/golang-migrate/migrate/v4"
-    "github.com/c2pc/config-migrate/config/yaml"
+    "github.com/c2pc/config-migrate/driver/yaml"
     "github.com/c2pc/config-migrate/config"
     _ "github.com/golang-migrate/migrate/v4/source/file"
 )
 
 func main() {
-    driver := yaml.New(config.Settings{
+    driver := yaml.New(driver.Settings{
         Path: "config.yml",
         Perm: 0777,
     })
 
     m, err := migrate.NewWithDatabaseInstance(
-        "file://config/migrations",
+        "file://driver/migrations",
         "yaml", driver)
     if err != nil {
         panic(err)
@@ -176,8 +176,8 @@ import (
 	"embed"
 	"errors"
 
-	migrator "github.com/c2pc/config-migrate/config"
-	"github.com/c2pc/config-migrate/config/yaml"
+	"github.com/c2pc/config-migrate/driver"
+	"github.com/c2pc/config-migrate/driver/yaml"
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/golang-migrate/migrate/v4/source/iofs"
 )
@@ -186,8 +186,11 @@ import (
 var fs embed.FS
 
 func runMigration(path string) error {
+	//You can set a comment suffix
+	driver.CommentSuffix = "___comment___"
+	
 	//Enable to replace comments
-	yamlMigr := yaml.New(migrator.Settings{
+	yamlMigr := yaml.New(driver.Settings{
 		Path:                    path,
 		Perm:                    0777,
 		UnableToReplaceComments: true,
@@ -219,25 +222,28 @@ func runMigration(path string) error {
 
 
 ### YAML
-You can add comments to your parameters. Add suffix `___comment___` to parameter name 
+You can add comments to your parameters. Add suffix `______` to parameter name
+Set empty comment `host______:` to add `\n` to file
 ```yaml
-http___comment___: HTTP server configuration
-http___comment___1: HTTP server configuration2
-http___comment___2: HTTP server configuration3
+http______:
+http_______: HTTP server configuration1
+http________: HTTP server configuration2
 http:
-  host___comment___: The IP address the server will bind to
+  host______:
+  host_______: The IP address the server will bind to
   host: ___ip_address___
-
-  port___comment___: The port the server will listen on
+  port______:
+  port_______: The port the server will listen on
   port: 8052
 ```
 
 As a result we get
 ```yaml
-# HTTP server configuration
+
+# HTTP server configuration1
 # HTTP server configuration2
-# HTTP server configuration3
 http:
+
   # The IP address the server will bind to
   host: ___ip_address___
 
@@ -246,17 +252,21 @@ http:
 ```
 
 ### JSON
-You can add comments to your parameters. Add suffix `___comment___` to parameter name. If there are several comments, please indicate the number at the end. 
+You can add comments to your parameters. Add suffix `______` to parameter name.
+Set empty comment `"http______": ""` to add `\n` to file
 ```json
 {
-  "http___comment___": "HTTP server configuration",
-  "http___comment___1": "HTTP server configuration2",
-  "http___comment___8": "HTTP server configuration3",
+  "http______": "",
+  "http_______": "HTTP server configuration",
+  "http________": "HTTP server configuration1",
+  "http_________": "HTTP server configuration2",
   "http": {
-    "host___comment___": "The IP address the server will bind to",
+    "host______": "",
+    "host_______": "The IP address the server will bind to",
     "host": "___ip_address___",
 
-    "port___comment___": "The port the server will listen on",
+    "port______": "",
+    "port_______": "The port the server will listen on",
     "port": 8052
   }
 }
@@ -265,10 +275,12 @@ You can add comments to your parameters. Add suffix `___comment___` to parameter
 As a result we get
 ```json
 {
+  
   "____http": "HTTP server configuration",
-  "_____http": "HTTP server configuration2",
-  "____________http": "HTTP server configuration3",
+  "____http_": "HTTP server configuration1",
+  "____http__": "HTTP server configuration2",
   "http": {
+    
     "____host": "The IP address the server will bind to",
     "host": "___ip_address___",
 
@@ -281,6 +293,6 @@ As a result we get
 
 ### Examples
 
-* [JSON](config/json/examples/migrations) - JSON migrations with replacers and comments
-* [YAML](config/yaml/examples/migrations) - YAML migrations with replacers and comments
+* [JSON](driver/json/examples/migrations) - JSON migrations with replacers and comments
+* [YAML](driver/yaml/examples/migrations) - YAML migrations with replacers and comments
 * [EXAMPLE](example) - Example application with YAML migrations

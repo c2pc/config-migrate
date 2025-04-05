@@ -1,0 +1,13 @@
+str______:
+str_______: Str comment
+str: str
+
+number______:
+number_______: Number comment
+number________: Number comment1
+number_________: Number comment1
+number: 1
+
+boolean______:
+boolean_______: Boolean comment
+boolean: true

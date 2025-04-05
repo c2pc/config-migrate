@@ -4,8 +4,8 @@ import (
 	"embed"
 	"errors"
 
-	migrator "github.com/c2pc/config-migrate/config"
-	"github.com/c2pc/config-migrate/config/yaml"
+	migrator "github.com/c2pc/config-migrate/driver"
+	"github.com/c2pc/config-migrate/driver/yaml"
 	_ "github.com/c2pc/config-migrate/replacer/ip"
 	_ "github.com/c2pc/config-migrate/replacer/project_name"
 	_ "github.com/c2pc/config-migrate/replacer/random"
@@ -39,7 +39,7 @@ func runMigration(path string) error {
 	return nil
 }
 
-func runMigration2(path string) error {
+func runMigrationWithComments(path string) error {
 	//Enable to replace comments
 	yamlMigr := yaml.New(migrator.Settings{
 		Path:                    path,

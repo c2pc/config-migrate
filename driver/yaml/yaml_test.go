@@ -1,28 +1,29 @@
-package json
+package yaml
 
 import (
-	"encoding/json"
 	"fmt"
 	"io"
 	"os"
 	"testing"
 
-	"github.com/c2pc/config-migrate/config"
+	"github.com/c2pc/config-migrate/driver"
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/golang-migrate/migrate/v4/database"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
+	"gopkg.in/yaml.v3"
 )
 
-const configPath = "./examples/config.json"
+const configPath = "./examples/config.yaml"
 const migrationsPath = "./examples/migrations"
 
 func getConfig() database.Driver {
 	return New(config.Settings{
 		Path:                    configPath,
 		Perm:                    0777,
-		UnableToReplaceComments: false,
+		UnableToReplaceComments: true,
 	})
 }
+
 func getSourceURL() string {
 	return fmt.Sprintf("file://%s", migrationsPath)
 }
@@ -44,7 +45,7 @@ func readConfigFile(path string) (map[string]interface{}, error) {
 	}
 
 	fileMap := map[string]interface{}{}
-	if err = json.Unmarshal(fileData, &fileMap); err != nil {
+	if err = yaml.Unmarshal(fileData, &fileMap); err != nil {
 		return nil, err
 	}
 
@@ -52,7 +53,7 @@ func readConfigFile(path string) (map[string]interface{}, error) {
 }
 
 func convertMapToJsonString(m map[string]interface{}) (string, error) {
-	res, err := json.Marshal(m)
+	res, err := yaml.Marshal(m)
 	if err != nil {
 		return "", err
 	}
@@ -93,7 +94,7 @@ func TestLock_Unlock(t *testing.T) {
 
 	y := New(config.Settings{})
 
-	_, err := y.Open("json://" + configPath)
+	_, err := y.Open("yaml://" + configPath)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -129,7 +130,7 @@ func TestLock_Close(t *testing.T) {
 func TestUp1(t *testing.T) {
 	defer os.Remove(configPath)
 
-	m, err := migrate.NewWithDatabaseInstance(getSourceURL(), "json", getConfig())
+	m, err := migrate.NewWithDatabaseInstance(getSourceURL(), "yaml", getConfig())
 	if err != nil {
 		t.Error(err)
 		return
@@ -147,16 +148,11 @@ func TestUp1(t *testing.T) {
 	}
 
 	expected, err := convertMapToJsonString(map[string]interface{}{
-		"version":              1,
-		"force":                false,
-		"str___comment___":     "Str comment",
-		"str":                  "str",
-		"number___comment___":  "Number comment",
-		"number___comment___1": "Number comment1",
-		"number___comment___2": "Number comment1",
-		"number":               1,
-		"boolean___comment___": "Boolean comment",
-		"boolean":              true,
+		"version": 1,
+		"force":   false,
+		"str":     "str",
+		"number":  1,
+		"boolean": true,
 	})
 	if err != nil {
 		t.Error(err)
@@ -185,7 +181,7 @@ func TestUp1(t *testing.T) {
 func TestUp2(t *testing.T) {
 	defer os.Remove(configPath)
 
-	m, err := migrate.NewWithDatabaseInstance(getSourceURL(), "json", getConfig())
+	m, err := migrate.NewWithDatabaseInstance(getSourceURL(), "yaml", getConfig())
 	if err != nil {
 		t.Error(err)
 		return
@@ -209,10 +205,9 @@ func TestUp2(t *testing.T) {
 		"number":  1,
 		"boolean": true,
 		"map": map[string]interface{}{
-			"map_str___comment___": "map_str___comment___ STR",
-			"map_str":              "map_str",
-			"map_number":           2,
-			"map_boolean":          false,
+			"map_str":     "map_str",
+			"map_number":  2,
+			"map_boolean": false,
 		},
 	})
 	if err != nil {
@@ -242,7 +237,7 @@ func TestUp2(t *testing.T) {
 func TestUp3(t *testing.T) {
 	defer os.Remove(configPath)
 
-	m, err := migrate.NewWithDatabaseInstance(getSourceURL(), "json", getConfig())
+	m, err := migrate.NewWithDatabaseInstance(getSourceURL(), "yaml", getConfig())
 	if err != nil {
 		t.Error(err)
 		return
@@ -272,22 +267,17 @@ func TestUp3(t *testing.T) {
 				"map_str":           "map_str",
 			},
 			{
-				"map_array_boolean___comment___": "Some comments",
-				"map_array_boolean":              []bool{false, true, false},
-				"map_array_number":               []int{4, 5, 6},
-				"map_array_str___comment___":     "Some comments",
-				"map_array_str":                  []string{"str4", "str5", "str6"},
-				"map_boolean___comment___":       "Some comments",
-				"map_boolean":                    false,
-				"map_number":                     2,
-				"map_str___comment___":           "Some comments",
-				"map_str":                        "map_str2",
+				"map_array_boolean": []bool{false, true, false},
+				"map_array_number":  []int{4, 5, 6},
+				"map_array_str":     []string{"str4", "str5", "str6"},
+				"map_boolean":       false,
+				"map_number":        2,
+				"map_str":           "map_str2",
 			},
 		},
-		"array2":              []int{1, 2, 3},
-		"array3":              []string{"str1", "str2", "str3"},
-		"array4___comment___": "Some comments",
-		"array4":              []bool{true, false, true},
+		"array2": []int{1, 2, 3},
+		"array3": []string{"str1", "str2", "str3"},
+		"array4": []bool{true, false, true},
 	})
 	if err != nil {
 		t.Error(err)
@@ -316,11 +306,7 @@ func TestUp3(t *testing.T) {
 func TestUp3_Comments(t *testing.T) {
 	defer os.Remove(configPath)
 
-	m, err := migrate.NewWithDatabaseInstance(getSourceURL(), "json", New(config.Settings{
-		Path:                    configPath,
-		Perm:                    0777,
-		UnableToReplaceComments: true,
-	}))
+	m, err := migrate.NewWithDatabaseInstance(getSourceURL(), "yaml", getConfig())
 	if err != nil {
 		t.Error(err)
 		return
@@ -350,22 +336,17 @@ func TestUp3_Comments(t *testing.T) {
 				"map_str":           "map_str",
 			},
 			{
-				"_________________map_array_boolean": "Some comments",
-				"map_array_boolean":                  []bool{false, true, false},
-				"map_array_number":                   []int{4, 5, 6},
-				"_____________map_array_str":         "Some comments",
-				"map_array_str":                      []string{"str4", "str5", "str6"},
-				"___________map_boolean":             "Some comments",
-				"map_boolean":                        false,
-				"map_number":                         2,
-				"_______map_str":                     "Some comments",
-				"map_str":                            "map_str2",
+				"map_array_boolean": []bool{false, true, false},
+				"map_array_number":  []int{4, 5, 6},
+				"map_array_str":     []string{"str4", "str5", "str6"},
+				"map_boolean":       false,
+				"map_number":        2,
+				"map_str":           "map_str2",
 			},
 		},
-		"array2":       []int{1, 2, 3},
-		"array3":       []string{"str1", "str2", "str3"},
-		"______array4": "Some comments",
-		"array4":       []bool{true, false, true},
+		"array2": []int{1, 2, 3},
+		"array3": []string{"str1", "str2", "str3"},
+		"array4": []bool{true, false, true},
 	})
 	if err != nil {
 		t.Error(err)
@@ -394,7 +375,7 @@ func TestUp3_Comments(t *testing.T) {
 func TestUp3_Invalid_Config_File(t *testing.T) {
 	defer os.Remove(configPath)
 
-	m, err := migrate.NewWithDatabaseInstance(getSourceURL(), "json", getConfig())
+	m, err := migrate.NewWithDatabaseInstance(getSourceURL(), "yaml", getConfig())
 	if err != nil {
 		t.Error(err)
 		return
@@ -431,7 +412,7 @@ func TestUp3_Invalid_Config_File(t *testing.T) {
 func TestUp4_Invalid_Migration_File(t *testing.T) {
 	defer os.Remove(configPath)
 
-	m, err := migrate.NewWithDatabaseInstance(getSourceURL(), "json", getConfig())
+	m, err := migrate.NewWithDatabaseInstance(getSourceURL(), "yaml", getConfig())
 	if err != nil {
 		t.Error(err)
 		return
@@ -461,22 +442,17 @@ func TestUp4_Invalid_Migration_File(t *testing.T) {
 				"map_str":           "map_str",
 			},
 			{
-				"map_array_boolean___comment___": "Some comments",
-				"map_array_boolean":              []bool{false, true, false},
-				"map_array_number":               []int{4, 5, 6},
-				"map_array_str___comment___":     "Some comments",
-				"map_array_str":                  []string{"str4", "str5", "str6"},
-				"map_boolean___comment___":       "Some comments",
-				"map_boolean":                    false,
-				"map_number":                     2,
-				"map_str___comment___":           "Some comments",
-				"map_str":                        "map_str2",
+				"map_array_boolean": []bool{false, true, false},
+				"map_array_number":  []int{4, 5, 6},
+				"map_array_str":     []string{"str4", "str5", "str6"},
+				"map_boolean":       false,
+				"map_number":        2,
+				"map_str":           "map_str2",
 			},
 		},
-		"array2":              []int{1, 2, 3},
-		"array3":              []string{"str1", "str2", "str3"},
-		"array4___comment___": "Some comments",
-		"array4":              []bool{true, false, true},
+		"array2": []int{1, 2, 3},
+		"array3": []string{"str1", "str2", "str3"},
+		"array4": []bool{true, false, true},
 	})
 	if err != nil {
 		t.Error(err)
@@ -505,7 +481,7 @@ func TestUp4_Invalid_Migration_File(t *testing.T) {
 func TestDrop(t *testing.T) {
 	defer os.Remove(configPath)
 
-	m, err := migrate.NewWithDatabaseInstance(getSourceURL(), "json", getConfig())
+	m, err := migrate.NewWithDatabaseInstance(getSourceURL(), "yaml", getConfig())
 	if err != nil {
 		t.Error(err)
 		return

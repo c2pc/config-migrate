@@ -3,14 +3,13 @@ package main
 import (
 	"fmt"
 	"log"
-	"os"
 )
 
 const configPath = "config.yaml"
 
 func main() {
 	//Run config migrations
-	if err := runMigration2(configPath); err != nil {
+	if err := runMigrationWithComments(configPath); err != nil {
 		log.Fatalf("Error running migration: %s", err)
 	}
 
@@ -22,10 +21,4 @@ func main() {
 
 	//Print results
 	fmt.Printf("%+v\n", cfg)
-
-	//Delete config file after migration (do not use in production)
-	err = os.Remove(configPath)
-	if err != nil {
-		log.Fatalf("Error removing config file: %s", err)
-	}
 }

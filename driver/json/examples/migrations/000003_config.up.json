@@ -9,20 +9,21 @@
       "map_str":"map_str"
     },
     {
-      "map_array_boolean___comment___": "Some comments",
+      "map_array_boolean______": "",
+      "map_array_boolean_______": "Some comments",
       "map_array_boolean":[false,true,false],
       "map_array_number":[4,5,6],
-      "map_array_str___comment___": "Some comments",
+      "map_array_str______": "Some comments",
       "map_array_str":["str4","str5","str6"],
-      "map_boolean___comment___": "Some comments",
+      "map_boolean______": "Some comments",
       "map_boolean":false,
       "map_number":2,
-      "map_str___comment___": "Some comments",
+      "map_str______": "Some comments",
       "map_str":"map_str2"
     }
   ],
   "array2":[1,2,3],
   "array3":["str1","str2","str3"],
-  "array4___comment___": "Some comments",
+  "array4______": "Some comments",
   "array4":[true,false,true]
 }

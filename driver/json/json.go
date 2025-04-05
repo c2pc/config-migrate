@@ -6,10 +6,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"regexp"
-	"strconv"
 	"strings"
 
-	"github.com/c2pc/config-migrate/config"
+	"github.com/c2pc/config-migrate/driver"
 	"github.com/golang-migrate/migrate/v4/database"
 )
 
@@ -38,7 +37,7 @@ func (m Json) Marshal(i interface{}, replaceComments bool) ([]byte, error) {
 	}
 
 	if replaceComments {
-		re := regexp.MustCompile(`^(\s*)"(.*)` + config.CommentSuffix + `(\d*)"(.*)$`)
+		re := regexp.MustCompile(`^(\s*)"(.*)` + config.CommentSuffix + `"(.*)$`)
 
 		scanner := bufio.NewScanner(bytes.NewBuffer(b))
 		var result []string
@@ -48,28 +47,26 @@ func (m Json) Marshal(i interface{}, replaceComments bool) ([]byte, error) {
 			if matches := re.FindStringSubmatch(line); matches != nil {
 				indent := matches[1]
 				key := matches[2]
-				number := matches[3]
-				comment := matches[4]
+				comment := matches[3]
 				if len(result) > 0 {
-					k := strings.Repeat("_", len(key)) + key
-					if len(number) > 0 {
-						id, err := strconv.Atoi(number)
-						if err != nil {
-							return nil, err
-						}
-						k = strings.Repeat("_", id) + k
-					}
+					k := strings.Repeat("_", len(strings.TrimRight(key, "_"))) + key
 					for c := len(result) - 1; c >= 0; c-- {
-						com := fmt.Sprintf(`%s"%s"%s`, indent, k, comment)
-						if strings.Contains(result[c], key+`":`) {
+						var com string
+						if comment != `: ""` && comment != `: "",` {
+							com = fmt.Sprintf(`%s"%s"%s`, indent, k, comment)
+						}
+
+						if strings.Contains(result[c], strings.TrimRight(key, "_")+`":`) {
 							if c == 0 {
 								result = append([]string{com}, result...)
 							} else if c == len(result)-1 {
 								var result2 []string
 								result2 = append(result2, result[:c]...)
 								last := result[c]
-								if com[len(com)-1:] != "," && last[len(last)-1:] == "," {
-									com = com + ","
+								if comment[len(comment)-1:] != "," && last[len(last)-1:] == "," {
+									if com != "" {
+										com = com + ","
+									}
 									last = last[:len(last)-1]
 								}
 								result2 = append(result2, com)

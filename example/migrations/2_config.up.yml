@@ -1,27 +1,37 @@
-http___comment___: HTTP server configuration
+http______:
+http_______: HTTP server configuration
 http:
-  host___comment___: The IP address the server will bind to
+  host______:
+  host_______: The IP address the server will bind to
   host: ___ip_address___
 
-  port___comment___: The port the server will listen on
+  port______:
+  port_______: The port the server will listen on
   port: 8052
 
-log___comment___: Logging configuration
+log______:
+log_______: Logging configuration
 log:
-  compress___comment___: Whether to compress old log files
+  compress______:
+  compress_______: Whether to compress old log files
   compress: false
 
-  debug___comment___: Logging level or mode (e.g., debug, production)
+  debug______:
+  debug_______: Logging level or mode (e.g., debug, production)
   debug: production
 
-  dir___comment___: Directory where log files will be stored
+  dir______:
+  dir_______: Directory where log files will be stored
   dir: /var/log/___project_name___
 
-  max_age___comment___: Maximum number of days to retain old log files
+  max_age______:
+  max_age_______: Maximum number of days to retain old log files
   max_age: 28
 
-  max_backups___comment___: Maximum number of backup log files to keep
+  max_backups______:
+  max_backups_______: Maximum number of backup log files to keep
   max_backups: 5
 
-  max_size___comment___: Maximum size (in MB) of a log file before it gets rotated
+  max_size______:
+  max_size_______: Maximum size (in MB) of a log file before it gets rotated
   max_size: 20

@@ -11,7 +11,7 @@ const DefaultPerm fs.FileMode = 0666
 
 // CommentSuffix defines the special suffix used to identify comment-like keys.
 // Keys ending with this suffix will be treated as comments and converted to actual '#'(YAML) comments in output.
-const CommentSuffix = "___comment___"
+var CommentSuffix = "______"
 
 // Settings represents the configuration settings for a config driver.
 type Settings struct {

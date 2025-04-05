@@ -1,0 +1,10 @@
+{
+  "str______": "Str comment",
+  "str": "str",
+  "number______": "Number comment",
+  "number_______": "Number comment1",
+  "number________": "Number comment1",
+  "number": 1,
+  "boolean______": "Boolean comment",
+  "boolean": true
+}

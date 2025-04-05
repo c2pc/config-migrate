@@ -1,7 +1,10 @@
-http___comment___: HTTP server configuration
+http______:
+http_______: HTTP server configuration
 http:
-  host___comment___: The IP address the server will bind to
+  host______:
+  host_______: The IP address the server will bind to
   host: ___ip_address___
 
-  port___comment___: The port the server will listen on
+  port______:
+  port_______: The port the server will listen on
   port: 8052
