@@ -2,6 +2,7 @@ package merger
 
 import (
 	"encoding/json"
+	"fmt"
 	"testing"
 
 	"github.com/c2pc/config-migrate/replacer"
@@ -558,5 +559,158 @@ func TestMergeReplace(t *testing.T) {
 				t.Errorf("Expected\n %s, got\n %s", string(exp), string(res))
 			}
 		})
+	}
+}
+
+func BenchmarkMergeMapsFlat(b *testing.B) {
+	newMap := map[string]interface{}{
+		"string": "value",
+		"int":    1,
+		"bool":   true,
+	}
+
+	oldMap := map[string]interface{}{
+		"string": "old_value",
+		"int":    99,
+		"bool":   false,
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = mergeMaps(newMap, oldMap)
+	}
+}
+
+func BenchmarkMergeMapsNested(b *testing.B) {
+	newMap := map[string]interface{}{
+		"user": map[string]interface{}{
+			"name": "Alice",
+			"age":  30,
+		},
+	}
+
+	oldMap := map[string]interface{}{
+		"user": map[string]interface{}{
+			"name": "Bob",
+			"city": "New York",
+		},
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = mergeMaps(newMap, oldMap)
+	}
+}
+
+func BenchmarkMergeMapsDeepNestedArray(b *testing.B) {
+	newMap := map[string]interface{}{
+		"items": []interface{}{
+			map[string]interface{}{
+				"id":   0,
+				"name": "default",
+			},
+		},
+	}
+
+	oldMap := map[string]interface{}{
+		"items": []interface{}{
+			map[string]interface{}{
+				"id":   1,
+				"name": "item1",
+			},
+			map[string]interface{}{
+				"id":   2,
+				"name": "item2",
+			},
+		},
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = mergeMaps(newMap, oldMap)
+	}
+}
+
+func generateDeepNestedMap() map[string]interface{} {
+	return map[string]interface{}{
+		"level1": map[string]interface{}{
+			"level2": map[string]interface{}{
+				"level3": map[string]interface{}{
+					"string": "value",
+					"number": 123,
+					"bool":   true,
+					"array": []interface{}{
+						map[string]interface{}{
+							"id":   1,
+							"name": "item1",
+							"meta": map[string]interface{}{
+								"enabled": true,
+								"tags":    []interface{}{"a", "b", "c"},
+							},
+						},
+						map[string]interface{}{
+							"id":   2,
+							"name": "item2",
+							"meta": map[string]interface{}{
+								"enabled": false,
+								"tags":    []interface{}{},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
+func BenchmarkMergeMaps_DeepNestedLarge(b *testing.B) {
+	newMap := generateDeepNestedMap()
+	oldMap := generateDeepNestedMap()
+
+	// Изменим значения в oldMap для "реального" слияния
+	oldMap["level1"].(map[string]interface{})["level2"].(map[string]interface{})["level3"].(map[string]interface{})["string"] = "oldValue"
+	oldMap["level1"].(map[string]interface{})["level2"].(map[string]interface{})["level3"].(map[string]interface{})["new_key"] = "added"
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = mergeMaps(newMap, oldMap)
+	}
+}
+
+func generateMassiveMap(from, to int) map[string]interface{} {
+	m := make(map[string]interface{}, from-to)
+	for i := from; i < to; i++ {
+		key := "key_" + fmt.Sprint(i)
+		m[key] = map[string]interface{}{
+			"nested": map[string]interface{}{
+				"value": i,
+				"bool":  i%2 == 1,
+				"array": []interface{}{
+					map[string]interface{}{
+						"id":   i,
+						"name": fmt.Sprintf("item_%d", i),
+					},
+					map[string]interface{}{
+						"id":   i,
+						"name": fmt.Sprintf("item_%d", i),
+					},
+					map[string]interface{}{
+						"id":   i,
+						"name": fmt.Sprintf("item_%d", i),
+					},
+				},
+			},
+		}
+	}
+	return m
+}
+
+func BenchmarkMergeMaps_Massive(b *testing.B) {
+	newMap := generateMassiveMap(0, 1000)
+	oldMap := generateMassiveMap(200, 1200)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = mergeMaps(newMap, oldMap)
 	}
 }

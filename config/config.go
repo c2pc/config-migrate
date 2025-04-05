@@ -117,12 +117,14 @@ func (m *Config) Run(migration io.Reader) error {
 		return errors.Wrapf(err, "failed to parse %s", m.path)
 	}
 
+	// Remove migration-specific metadata
+	delete(migrMap, "force")
+	delete(fileMap, "force")
+	delete(migrMap, "version")
+	delete(fileMap, "version")
+
 	// Merge current config and migration changes
 	base := merger.Merge(migrMap, fileMap)
-
-	// Remove migration-specific metadata
-	delete(base, "version")
-	delete(base, "force")
 
 	// Marshal merged data to bytes
 	data, err := m.driver.Marshal(base, false)

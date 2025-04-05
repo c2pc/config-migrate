@@ -1,29 +1,25 @@
 package merger
 
 import (
-	"reflect"
-
 	"github.com/c2pc/config-migrate/replacer"
 )
 
 func Merge(new, old map[string]interface{}) map[string]interface{} {
-	delete(old, "force")
-	delete(new, "force")
-	delete(old, "version")
-	delete(new, "version")
-	return mergeMaps(new, old)
-}
+	m := mergeMaps(new, old)
 
-func mergeMaps(new, old map[string]interface{}) map[string]interface{} {
-	//If the new map is empty
-	if new == nil || len(new) == 0 {
-		return map[string]interface{}{}
+	if replacer.HasReplacers() {
+		for k, v := range m {
+			m[k] = replace(v)
+		}
 	}
 
-	//Create a new migration results map
-	out := make(map[string]interface{})
-	for key, value := range new {
-		out[key] = replace(value)
+	return m
+}
+
+func mergeMaps(out, old map[string]interface{}) map[string]interface{} {
+	//If the new map is empty
+	if out == nil || len(out) == 0 {
+		return map[string]interface{}{}
 	}
 
 	//If the old map is empty, start merging,
@@ -69,17 +65,17 @@ func mergeMaps(new, old map[string]interface{}) map[string]interface{} {
 								out[oldKey] = newArrayMap
 							} else {
 								//Add pld value to results map with replacer
-								out[oldKey] = replace(oldValue)
+								out[oldKey] = oldValue
 							}
 						}
 					} else
 					//If the types of the new and old values are equal use old value
-					if reflect.TypeOf(newValue) == reflect.TypeOf(oldValue) {
-						out[oldKey] = replace(oldValue)
+					if isSameType(newValue, oldValue) {
+						out[oldKey] = oldValue
 					} else
 					//If old value is empty,
 					//otherwise a new one is assigned
-					if reflect.TypeOf(oldValue) == nil {
+					if oldValue == nil {
 						out[oldKey] = nil
 					}
 				}
@@ -107,4 +103,29 @@ func replace(value interface{}) interface{} {
 	}
 
 	return value
+}
+
+func isSameType(a, b interface{}) bool {
+	switch a.(type) {
+	case string:
+		_, ok := b.(string)
+		return ok
+	case int:
+		_, ok := b.(int)
+		return ok
+	case float64:
+		_, ok := b.(float64)
+		return ok
+	case bool:
+		_, ok := b.(bool)
+		return ok
+	case map[string]interface{}:
+		_, ok := b.(map[string]interface{})
+		return ok
+	case []interface{}:
+		_, ok := b.([]interface{})
+		return ok
+	default:
+		return false
+	}
 }
