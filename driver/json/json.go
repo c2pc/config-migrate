@@ -56,7 +56,7 @@ func (m Json) Marshal(i interface{}, replaceComments bool) ([]byte, error) {
 							com = fmt.Sprintf(`%s"%s"%s`, indent, k, comment)
 						}
 
-						if strings.Contains(result[c], strings.TrimRight(key, "_")+`":`) {
+						if strings.Contains(result[c], indent+`"`+strings.TrimRight(key, "_")+`":`) {
 							if c == 0 {
 								result = append([]string{com}, result...)
 							} else if c == len(result)-1 {
