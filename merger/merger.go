@@ -31,53 +31,47 @@ func mergeMaps(out, old map[string]interface{}) map[string]interface{} {
 				newValueMap, newValueMapOK := newValue.(map[string]interface{})
 				oldValueMap, oldValueMapOK := oldValue.(map[string]interface{})
 
+				newValueArray, newValueArrayOK := newValue.([]interface{})
+				oldValueArray, oldValueArrayOK := oldValue.([]interface{})
+
 				//If interface of new and old is map[string]interface{}
 				if newValueMapOK && oldValueMapOK {
 					//Run merger for maps
 					out[oldKey] = mergeMaps(newValueMap, oldValueMap)
-				} else {
-					newValueArray, newValueArrayOK := newValue.([]interface{})
-					oldValueArray, oldValueArrayOK := oldValue.([]interface{})
-
-					//If interface of new and old is []interface{}
-					if newValueArrayOK && oldValueArrayOK {
-						//If the old and new arrays are not empty,
-						//otherwise the new one is assigned
-						if len(newValueArray) > 0 && len(oldValueArray) > 0 {
-							//The interface of the first element of the new array is map[string]interface{},
-							//otherwise a old one is assigned
-							if newValueArray2Map, newValueArrayOK2Map := newValueArray[0].(map[string]interface{}); newValueArrayOK2Map {
-								//Create a new migration results map for array elements
-								var newArrayMap []map[string]interface{}
-								for i, newValueArrayValue := range oldValueArray {
-									//If interface of value is map[string]interface{},
-									//otherwise the element is skipped
-									if oldValueArray2Map, oldValueArrayOK2Map := newValueArrayValue.(map[string]interface{}); oldValueArrayOK2Map {
-										//Run merger for maps
-										newArrayMap = append(newArrayMap, mergeMaps(newValueArray2Map, oldValueArray2Map))
-									} else {
-										if i < len(newValueArray) {
-											newArrayMap = append(newArrayMap, mergeMaps(newValueArray2Map, newValueArray2Map))
-										}
+				} else if newValueArrayOK && oldValueArrayOK {
+					//If the old and new arrays are not empty,
+					//otherwise the new one is assigned
+					if len(newValueArray) > 0 && len(oldValueArray) > 0 {
+						//The interface of the first element of the new array is map[string]interface{},
+						//otherwise a old one is assigned
+						if newValueArray2Map, newValueArrayOK2Map := newValueArray[0].(map[string]interface{}); newValueArrayOK2Map {
+							//Create a new migration results map for array elements
+							var newArrayMap []map[string]interface{}
+							for i, newValueArrayValue := range oldValueArray {
+								//If interface of value is map[string]interface{},
+								//otherwise the element is skipped
+								if oldValueArray2Map, oldValueArrayOK2Map := newValueArrayValue.(map[string]interface{}); oldValueArrayOK2Map {
+									//Run merger for maps
+									newArrayMap = append(newArrayMap, mergeMaps(newValueArray2Map, oldValueArray2Map))
+								} else {
+									if i < len(newValueArray) {
+										newArrayMap = append(newArrayMap, mergeMaps(newValueArray2Map, newValueArray2Map))
 									}
 								}
-								//Add new array to results map
-								out[oldKey] = newArrayMap
-							} else {
-								//Add pld value to results map with replacer
-								out[oldKey] = oldValue
 							}
+							//Add new array to results map
+							out[oldKey] = newArrayMap
+						} else {
+							//Add pld value to results map with replacer
+							out[oldKey] = oldValue
 						}
-					} else
-					//If the types of the new and old values are equal use old value
-					if isSameType(newValue, oldValue) {
-						out[oldKey] = oldValue
-					} else
-					//If old value is empty,
-					//otherwise a new one is assigned
-					if oldValue == nil {
-						out[oldKey] = nil
 					}
+				} else if isSameType(newValue, oldValue) {
+					out[oldKey] = oldValue
+				} else if oldValue == nil {
+					out[oldKey] = nil
+				} else if newValue == nil {
+					out[oldKey] = oldValue
 				}
 			}
 		}
