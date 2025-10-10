@@ -8,6 +8,19 @@ number________: Number comment1
 number_________: Number comment1
 number: 1
 
+host______:
+host_______: HOST1
+host________: HOST2
+host:
+  url______:
+  url_______: URL1
+  url: url
+
+  host______:
+  host_______: HOST8
+  host________: HOST9
+  host: host10
+
 boolean______:
 boolean_______: Boolean comment
 boolean: true

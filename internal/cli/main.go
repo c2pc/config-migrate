@@ -76,7 +76,7 @@ func Main() {
 Options:
   -source          Location of the migrations (driver://url)
   -path            Shorthand for -source=file://path
-  -file        Run migrations against this file (driver://url)
+  -file        	   Run migrations against this file (driver://url)
   -prefetch N      Number of migrations to load in advance before executing (default 10)
   -lock-timeout N  Allow N seconds to acquire file lock (default 15)
   -verbose         Print verbose logging

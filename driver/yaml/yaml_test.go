@@ -153,6 +153,10 @@ func TestUp1(t *testing.T) {
 		"str":     "str",
 		"number":  1,
 		"boolean": true,
+		"host": map[string]interface{}{
+			"url":  "url",
+			"host": "host10",
+		},
 	})
 	if err != nil {
 		t.Error(err)
