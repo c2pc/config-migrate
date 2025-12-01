@@ -40,15 +40,6 @@ Make sure you have Go 1.18+ and Go modules enabled.
 go get github.com/c2pc/config-migrate
 ```
 
-## Use in your Go project
-
-* API is stable and frozen for this release (v3 & v4).
-* Uses [Go modules](https://golang.org/cmd/go/#hdr-Modules__module_versions__and_more) to manage dependencies.
-* Supports graceful stop via `GracefulStop chan bool`.
-* Bring your own logger.
-* Uses `io.Reader` streams internally for low memory overhead.
-* Thread-safe and no goroutine leaks.
-
 📚 __[Go Documentation](https://pkg.go.dev/github.com/golang-migrate/migrate/v4)__
 
 ### Basic usage with config file:
