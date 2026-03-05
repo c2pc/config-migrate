@@ -23,6 +23,9 @@ type Settings struct {
 
 	// UnableToReplaceComments True if some comments could be replaced
 	UnableToReplaceComments bool
+
+	// OnlyOneVersion True if you want to maintain only one version of the config and don't want to create multiple files
+	OnlyOneVersion bool
 }
 
 // Driver is the interface that every config driver must implement.

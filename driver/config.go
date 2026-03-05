@@ -23,6 +23,7 @@ type Config struct {
 	path                    string           // Path to the configuration file
 	perm                    fs.FileMode      // File permissions
 	unableToReplaceComments bool             //True if some comments could be replaced
+	onlyOneVersion          bool             //True if you want to maintain only one version of the config and don't want to create multiple files
 }
 
 // New returns a new instance of the config driver using the given settings.
@@ -42,6 +43,7 @@ func New(driver Driver, cfg Settings) database.Driver {
 		path:                    path,
 		perm:                    perm,
 		unableToReplaceComments: cfg.UnableToReplaceComments,
+		onlyOneVersion:          cfg.OnlyOneVersion,
 	}
 
 	return m
@@ -152,6 +154,10 @@ func (m *Config) Run(migration io.Reader) error {
 
 // SetVersion updates the current config file with version and dirty (force) flags.
 func (m *Config) SetVersion(version int, dirty bool) error {
+	if m.onlyOneVersion {
+		return nil
+	}
+
 	if _, err := m.lockedFile.Seek(0, 0); err != nil {
 		return err
 	}
@@ -166,7 +172,6 @@ func (m *Config) SetVersion(version int, dirty bool) error {
 		return errors.Wrapf(err, "failed to parse %s", m.path)
 	}
 
-	// Set versioning fields
 	fileMap["version"] = version
 	fileMap["force"] = dirty
 
@@ -193,6 +198,10 @@ func (m *Config) SetVersion(version int, dirty bool) error {
 
 // Version reads and returns the current migration version and dirty flag.
 func (m *Config) Version() (int, bool, error) {
+	if m.onlyOneVersion {
+		return 0, false, nil
+	}
+
 	if _, err := m.lockedFile.Seek(0, 0); err != nil {
 		if errors.Is(err, fs.ErrClosed) {
 			// If file is closed, reopen and lock it
