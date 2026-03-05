@@ -26,6 +26,10 @@ type Settings struct {
 
 	// OnlyOneVersion True if you want to maintain only one version of the config and don't want to create multiple files
 	OnlyOneVersion bool
+
+	// BackupBeforeMigrate if true, backs up the config file once per migration run (current version) before applying any migration.
+	// E.g. when migrating 2→10, only one backup is made (state at version 2), not before each of 3,4,…,10.
+	BackupBeforeMigrate bool
 }
 
 // Driver is the interface that every config driver must implement.

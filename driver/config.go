@@ -4,6 +4,7 @@ import (
 	"io"
 	"io/fs"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -22,8 +23,10 @@ type Config struct {
 	mu                      sync.Mutex       // Mutex to synchronize file access
 	path                    string           // Path to the configuration file
 	perm                    fs.FileMode      // File permissions
-	unableToReplaceComments bool             //True if some comments could be replaced
-	onlyOneVersion          bool             //True if you want to maintain only one version of the config and don't want to create multiple files
+	unableToReplaceComments bool             // True if some comments could be replaced
+	onlyOneVersion          bool             // True if you want to maintain only one version of the config and don't want to create multiple files
+	backupBeforeMigrate     bool             // If true, backup config once per migration run (before first Run in this session)
+	backedUpThisSession     bool             // Whether we already wrote a backup in this Lock session
 }
 
 // New returns a new instance of the config driver using the given settings.
@@ -44,6 +47,7 @@ func New(driver Driver, cfg Settings) database.Driver {
 		perm:                    perm,
 		unableToReplaceComments: cfg.UnableToReplaceComments,
 		onlyOneVersion:          cfg.OnlyOneVersion,
+		backupBeforeMigrate:     cfg.BackupBeforeMigrate,
 	}
 
 	return m
@@ -117,6 +121,19 @@ func (m *Config) Run(migration io.Reader) error {
 	fileMap := map[string]interface{}{}
 	if err := m.driver.Unmarshal(fileData, &fileMap); err != nil {
 		return errors.Wrapf(err, "failed to parse %s", m.path)
+	}
+
+	// One-time backup per migration run: save current file state (e.g. version 2) before applying any migration.
+	if m.backupBeforeMigrate && !m.backedUpThisSession {
+		version, _, _ := m.driver.Version(fileData)
+		if version < 0 {
+			version = 0
+		}
+		backupPath := m.path + ".v" + strconv.Itoa(version) + ".backup"
+		if err := os.WriteFile(backupPath, fileData, m.perm); err != nil {
+			return errors.Wrapf(err, "backup before migrate: write %s", backupPath)
+		}
+		m.backedUpThisSession = true
 	}
 
 	// Remove migration-specific metadata

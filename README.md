@@ -23,6 +23,7 @@ This is useful when:
 ## Features
 
 * Seamless integration with [`golang-migrate`](https://github.com/golang-migrate/migrate)
+* **Migration scenarios**: rename keys, move paths, `_deprecated` (path→key), `_replace` (force new value), `_deprecated_expand` (array of scalars→array of objects), `_deprecated_collapse` (array of objects→array of scalars). See [docs/MIGRATION_SCENARIOS.md](docs/MIGRATION_SCENARIOS.md) for all scenarios and production tips.
 * File-based locking to prevent concurrent writes
 * Config merging with support for version tracking
 * Supports `version`, `force`, and `drop` commands
