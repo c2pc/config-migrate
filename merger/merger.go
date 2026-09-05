@@ -174,8 +174,52 @@ func appendSlice(a []interface{}, els ...interface{}) []interface{} {
 	return append(a, els...)
 }
 
+// isDeprecatedMetaKey reports whether k is a migration marker (*_deprecated*).
+func isDeprecatedMetaKey(k string) bool {
+	return strings.HasSuffix(k, deprecatedConcatSuffix) ||
+		strings.HasSuffix(k, deprecatedCollapseSuffix) ||
+		strings.HasSuffix(k, deprecatedExpandSuffix) ||
+		strings.HasSuffix(k, deprecatedReplaceSuffix) ||
+		strings.HasSuffix(k, deprecatedSuffix)
+}
+
+// extendMapFromDeprecated copies the object from the deprecated path, then adds keys
+// from newTemplate that are missing. Existing keys keep old values (mergeValues);
+// nested maps are extended the same way so unknown user keys are not dropped.
+func extendMapFromDeprecated(deprecated, newTemplate map[string]interface{}) map[string]interface{} {
+	result := deepCopyMap(deprecated)
+	for k, nv := range newTemplate {
+		if isDeprecatedMetaKey(k) {
+			continue
+		}
+		if ov, exists := result[k]; exists {
+			om, oIsMap := ov.(map[string]interface{})
+			nm, nIsMap := nv.(map[string]interface{})
+			if oIsMap && nIsMap {
+				result[k] = extendMapFromDeprecated(om, nm)
+			} else {
+				result[k] = mergeValues(nv, ov)
+			}
+		} else {
+			result[k] = deepCopyValue(nv)
+		}
+	}
+	return result
+}
+
 // applyDeprecatedInto applies deprecated rules into m in place: for each *_deprecated in new,
 // pulls value from old by path and merges into m[targetKey]. Uses root old for paths.
+//
+// Preserve whole object (no template):
+//
+//	rtc_deprecated: vcs.webrtc.rtc
+//
+// Add new keys while keeping unknown user fields — declare both marker and template
+// with only the new (or known) fields:
+//
+//	rtc_deprecated: vcs.webrtc.rtc
+//	rtc:
+//	  new_setting: false
 func applyDeprecatedInto(m, new, old map[string]interface{}) {
 	if m == nil || new == nil || old == nil {
 		return
@@ -201,15 +245,13 @@ func applyDeprecatedInto(m, new, old map[string]interface{}) {
 		oldTarget, _ := getValueByPath(old, targetKey)
 		newTarget := new[targetKey]
 
-		_, depIsMap := deprecatedVal.(map[string]interface{})
+		depMap, depIsMap := deprecatedVal.(map[string]interface{})
 		newMap, newIsMap := newTarget.(map[string]interface{})
 
 		if depIsMap && newIsMap {
-			// Nested object: m[targetKey] already has new structure from merge; just recurse to apply inner _deprecated
-			mChild, _ := m[targetKey].(map[string]interface{})
-			if mChild != nil {
-				applyDeprecatedInto(mChild, newMap, old)
-			}
+			extended := extendMapFromDeprecated(depMap, newMap)
+			m[targetKey] = extended
+			applyDeprecatedInto(extended, newMap, old)
 		} else {
 			merged := mergeDeprecatedIntoTarget(oldTarget, deprecatedVal, newTarget)
 			m[targetKey] = merged

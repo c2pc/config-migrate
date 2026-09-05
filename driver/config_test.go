@@ -154,6 +154,256 @@ func TestRun_deprecatedAndReplace(t *testing.T) {
 	}
 }
 
+// TestRun_deprecatedObjectVariants covers preserve / extend / replace / drop through Config.Run.
+func TestRun_deprecatedObjectVariants(t *testing.T) {
+	type step struct {
+		migration string
+	}
+	tests := []struct {
+		name    string
+		initial map[string]interface{}
+		steps   []step
+		check   func(t *testing.T, got map[string]interface{})
+	}{
+		{
+			name: "preserve_only",
+			initial: map[string]interface{}{
+				"vcs": map[string]interface{}{
+					"webrtc": map[string]interface{}{
+						"rtc": map[string]interface{}{
+							"a":    1,
+							"user": "x",
+						},
+					},
+				},
+			},
+			steps: []step{
+				{`{"vcs":{"webrtc":{"rtc_deprecated":"vcs.webrtc.rtc"}}}`},
+				{`{"vcs":{"webrtc":{"rtc_deprecated":"vcs.webrtc.rtc"}}}`},
+			},
+			check: func(t *testing.T, got map[string]interface{}) {
+				rtc := got["vcs"].(map[string]interface{})["webrtc"].(map[string]interface{})["rtc"].(map[string]interface{})
+				if rtc["a"].(float64) != 1 || rtc["user"] != "x" {
+					t.Fatalf("preserve failed: %v", rtc)
+				}
+			},
+		},
+		{
+			name: "extend_add_key",
+			initial: map[string]interface{}{
+				"vcs": map[string]interface{}{
+					"webrtc": map[string]interface{}{
+						"rtc": map[string]interface{}{"user": "x", "n": map[string]interface{}{"k": 1}},
+					},
+				},
+			},
+			steps: []step{
+				{`{"vcs":{"webrtc":{"rtc_deprecated":"vcs.webrtc.rtc","rtc":{"new":true,"n":{"m":2}}}}}`},
+			},
+			check: func(t *testing.T, got map[string]interface{}) {
+				rtc := got["vcs"].(map[string]interface{})["webrtc"].(map[string]interface{})["rtc"].(map[string]interface{})
+				if rtc["user"] != "x" || rtc["new"] != true {
+					t.Fatalf("extend top: %v", rtc)
+				}
+				n := rtc["n"].(map[string]interface{})
+				if n["k"].(float64) != 1 || n["m"].(float64) != 2 {
+					t.Fatalf("extend nested: %v", n)
+				}
+			},
+		},
+		{
+			name: "extend_does_not_overwrite",
+			initial: map[string]interface{}{
+				"vcs": map[string]interface{}{
+					"webrtc": map[string]interface{}{
+						"rtc": map[string]interface{}{"port": 51000},
+					},
+				},
+			},
+			steps: []step{
+				{`{"vcs":{"webrtc":{"rtc_deprecated":"vcs.webrtc.rtc","rtc":{"port":1,"extra":0}}}}`},
+			},
+			check: func(t *testing.T, got map[string]interface{}) {
+				rtc := got["vcs"].(map[string]interface{})["webrtc"].(map[string]interface{})["rtc"].(map[string]interface{})
+				if rtc["port"].(float64) != 51000 {
+					t.Fatalf("overwrote user port: %v", rtc["port"])
+				}
+				if rtc["extra"].(float64) != 0 {
+					t.Fatalf("extra not added: %v", rtc)
+				}
+			},
+		},
+		{
+			name: "replace_inside_extend",
+			initial: map[string]interface{}{
+				"vcs": map[string]interface{}{
+					"webrtc": map[string]interface{}{
+						"rtc": map[string]interface{}{"port": 51000, "user": "x"},
+					},
+				},
+			},
+			steps: []step{
+				{`{"vcs":{"webrtc":{"rtc_deprecated":"vcs.webrtc.rtc","rtc":{"port_deprecated_replace":"","port":50000,"extra":1}}}}`},
+			},
+			check: func(t *testing.T, got map[string]interface{}) {
+				rtc := got["vcs"].(map[string]interface{})["webrtc"].(map[string]interface{})["rtc"].(map[string]interface{})
+				if rtc["port"].(float64) != 50000 {
+					t.Fatalf("replace failed: %v", rtc["port"])
+				}
+				if rtc["user"] != "x" || rtc["extra"].(float64) != 1 {
+					t.Fatalf("side effects: %v", rtc)
+				}
+			},
+		},
+		{
+			name: "omit_without_deprecated_drops",
+			initial: map[string]interface{}{
+				"vcs": map[string]interface{}{
+					"webrtc": map[string]interface{}{
+						"rtc": map[string]interface{}{"user": "x"},
+					},
+				},
+			},
+			steps: []step{
+				{`{"vcs":{"webrtc":{}}}`},
+			},
+			check: func(t *testing.T, got map[string]interface{}) {
+				webrtc := got["vcs"].(map[string]interface{})["webrtc"].(map[string]interface{})
+				if _, ok := webrtc["rtc"]; ok {
+					t.Fatalf("rtc should be dropped without deprecated, got %v", webrtc)
+				}
+			},
+		},
+		{
+			name: "path_missing_with_template_uses_defaults",
+			initial: map[string]interface{}{
+				"vcs": map[string]interface{}{"tcp": map[string]interface{}{"port": 1}},
+			},
+			steps: []step{
+				{`{"vcs":{"tcp":{"port":1},"webrtc":{"rtc_deprecated":"vcs.webrtc.rtc","rtc":{"port_range_start":50000}}}}`},
+			},
+			check: func(t *testing.T, got map[string]interface{}) {
+				rtc := got["vcs"].(map[string]interface{})["webrtc"].(map[string]interface{})["rtc"].(map[string]interface{})
+				if rtc["port_range_start"].(float64) != 50000 {
+					t.Fatalf("expected template default, got %v", rtc)
+				}
+			},
+		},
+		{
+			name: "full_template_still_keeps_unknown_with_deprecated",
+			initial: map[string]interface{}{
+				"vcs": map[string]interface{}{
+					"webrtc": map[string]interface{}{
+						"rtc": map[string]interface{}{
+							"port_range_start": 51000,
+							"user_only":        "keep",
+						},
+					},
+				},
+			},
+			steps: []step{
+				{`{"vcs":{"webrtc":{"rtc_deprecated":"vcs.webrtc.rtc","rtc":{"port_range_start":50000,"port_range_end":60000}}}}`},
+			},
+			check: func(t *testing.T, got map[string]interface{}) {
+				rtc := got["vcs"].(map[string]interface{})["webrtc"].(map[string]interface{})["rtc"].(map[string]interface{})
+				if rtc["user_only"] != "keep" {
+					t.Fatalf("user_only lost: %v", rtc)
+				}
+				if rtc["port_range_start"].(float64) != 51000 {
+					t.Fatalf("user port overwritten: %v", rtc["port_range_start"])
+				}
+				if rtc["port_range_end"].(float64) != 60000 {
+					t.Fatalf("new key not added: %v", rtc)
+				}
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tmp := t.TempDir()
+			path := filepath.Join(tmp, "config.json")
+			writeJSON(t, path, tt.initial)
+			c := cfg.New(&jsonDriver.Json{}, cfg.Settings{Path: path})
+			d, _ := c.Open("json://" + path)
+			if err := d.Lock(); err != nil {
+				t.Fatal(err)
+			}
+			defer d.Unlock()
+			for i, s := range tt.steps {
+				if err := d.Run(bytes.NewBufferString(s.migration)); err != nil {
+					t.Fatalf("step %d: %v", i, err)
+				}
+			}
+			tt.check(t, readJSON(t, path))
+		})
+	}
+}
+
+// TestRun_deprecatedPreserveSubtree keeps webrtc.rtc as-is (including user-only keys)
+// when a later migration lists only rtc_deprecated and omits the rtc template.
+func TestRun_deprecatedPreserveSubtree(t *testing.T) {
+	tmp := t.TempDir()
+	path := filepath.Join(tmp, "config.json")
+	initial := map[string]interface{}{
+		"vcs": map[string]interface{}{
+			"tcp": map[string]interface{}{"port": 8059},
+			"webrtc": map[string]interface{}{
+				"rtc": map[string]interface{}{
+					"port_range_start": 51000,
+					"port_range_end":   60000,
+					"user_ice_servers": []interface{}{"stun:custom.example"},
+					"vendor":           map[string]interface{}{"flag": "on"},
+				},
+			},
+		},
+	}
+	writeJSON(t, path, initial)
+	c := cfg.New(&jsonDriver.Json{}, cfg.Settings{Path: path})
+	d, _ := c.Open("json://" + path)
+	if err := d.Lock(); err != nil {
+		t.Fatal(err)
+	}
+	defer d.Unlock()
+
+	// Several later migrations: force-update tcp, add/update recording, never redefine full rtc.
+	migrations := []string{
+		`{"vcs":{"tcp":{"port_deprecated_replace":"","port":9001},"webrtc":{"rtc_deprecated":"vcs.webrtc.rtc"},"recording":{"filepath_prefix":"records"}}}`,
+		`{"vcs":{"tcp":{"port_deprecated_replace":"","port":9002},"webrtc":{"rtc_deprecated":"vcs.webrtc.rtc"},"recording":{"filepath_prefix_deprecated_replace":"","filepath_prefix":"records_v2"}}}`,
+		// Add a new key into rtc; user-only keys must remain.
+		`{"vcs":{"tcp":{"port_deprecated_replace":"","port":9003},"webrtc":{"rtc_deprecated":"vcs.webrtc.rtc","rtc":{"new_setting":false}},"recording":{"filepath_prefix_deprecated_replace":"","filepath_prefix":"records_v3"}}}`,
+	}
+	for _, m := range migrations {
+		if err := d.Run(bytes.NewBufferString(m)); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	got := readJSON(t, path)
+	vcs := got["vcs"].(map[string]interface{})
+	if vcs["tcp"].(map[string]interface{})["port"].(float64) != 9003 {
+		t.Errorf("tcp.port: want 9003, got %v", vcs["tcp"])
+	}
+	if vcs["recording"].(map[string]interface{})["filepath_prefix"] != "records_v3" {
+		t.Errorf("recording should update via replace, got %v", vcs["recording"])
+	}
+	rtc := vcs["webrtc"].(map[string]interface{})["rtc"].(map[string]interface{})
+	if rtc["port_range_start"].(float64) != 51000 {
+		t.Errorf("rtc.port_range_start should stay user value, got %v", rtc["port_range_start"])
+	}
+	servers, ok := rtc["user_ice_servers"].([]interface{})
+	if !ok || len(servers) != 1 || servers[0] != "stun:custom.example" {
+		t.Errorf("user_ice_servers lost: %v", rtc["user_ice_servers"])
+	}
+	vendor, ok := rtc["vendor"].(map[string]interface{})
+	if !ok || vendor["flag"] != "on" {
+		t.Errorf("user vendor map lost: %v", rtc["vendor"])
+	}
+	if rtc["new_setting"] != false {
+		t.Errorf("new_setting should be added, got %v", rtc["new_setting"])
+	}
+}
+
 // TestVersion_emptyFile returns NilVersion for empty file.
 func TestVersion_emptyFile(t *testing.T) {
 	tmp := t.TempDir()

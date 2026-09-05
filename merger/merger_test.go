@@ -696,7 +696,7 @@ func TestMergeDeprecated(t *testing.T) {
 			},
 		},
 		{
-			name: "nested: database_deprecated and dsn_deprecated",
+			name: "nested: dsn_deprecated from deep path",
 			oldMap: map[string]interface{}{
 				"sql": map[string]interface{}{
 					"file": map[string]interface{}{
@@ -708,7 +708,6 @@ func TestMergeDeprecated(t *testing.T) {
 				},
 			},
 			newMap: map[string]interface{}{
-				"database_deprecated": "sql.db",
 				"database": map[string]interface{}{
 					"dsn_deprecated": "sql.db.url",
 					"dsn":            []interface{}{"rapid:1232342@tcp(localhost:3306)/rapidcall"},
@@ -723,6 +722,94 @@ func TestMergeDeprecated(t *testing.T) {
 					"max_idle_conn": 10,
 					"max_open_conn": 100,
 					"use_postgres":  false,
+				},
+			},
+		},
+		{
+			// Only *_deprecated, no sibling target key → take the whole old object as-is
+			// (including keys the migration author does not know about).
+			name: "preserve entire object: rtc_deprecated without rtc key",
+			oldMap: map[string]interface{}{
+				"vcs": map[string]interface{}{
+					"webrtc": map[string]interface{}{
+						"rtc": map[string]interface{}{
+							"port_range_start": 50000,
+							"port_range_end":   60000,
+							"user_custom":      "keep-me",
+							"nested": map[string]interface{}{
+								"extra": true,
+							},
+						},
+					},
+				},
+			},
+			newMap: map[string]interface{}{
+				"vcs": map[string]interface{}{
+					"webrtc": map[string]interface{}{
+						"rtc_deprecated": "vcs.webrtc.rtc",
+					},
+				},
+			},
+			expected: map[string]interface{}{
+				"vcs": map[string]interface{}{
+					"webrtc": map[string]interface{}{
+						"rtc": map[string]interface{}{
+							"port_range_start": 50000,
+							"port_range_end":   60000,
+							"user_custom":      "keep-me",
+							"nested": map[string]interface{}{
+								"extra": true,
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			// Template + deprecated: keep all old/user keys, add keys missing from old.
+			name: "rtc_deprecated with rtc template adds new keys and keeps unknown",
+			oldMap: map[string]interface{}{
+				"vcs": map[string]interface{}{
+					"webrtc": map[string]interface{}{
+						"rtc": map[string]interface{}{
+							"port_range_start": 11111,
+							"user_custom":      "keep-me",
+							"nested": map[string]interface{}{
+								"extra": true,
+							},
+						},
+					},
+				},
+			},
+			newMap: map[string]interface{}{
+				"vcs": map[string]interface{}{
+					"webrtc": map[string]interface{}{
+						"rtc_deprecated": "vcs.webrtc.rtc",
+						"rtc": map[string]interface{}{
+							"port_range_start": 50000,
+							"port_range_end":   60000,
+							"new_setting":      false,
+							"nested": map[string]interface{}{
+								"new_nested": "added",
+							},
+						},
+					},
+				},
+			},
+			expected: map[string]interface{}{
+				"vcs": map[string]interface{}{
+					"webrtc": map[string]interface{}{
+						"rtc": map[string]interface{}{
+							"port_range_start": 11111,
+							"port_range_end":   60000,
+							"user_custom":      "keep-me",
+							"new_setting":      false,
+							"nested": map[string]interface{}{
+								"extra":      true,
+								"new_nested": "added",
+							},
+						},
+					},
 				},
 			},
 		},
@@ -745,6 +832,99 @@ func TestMergeDeprecated(t *testing.T) {
 				t.Errorf("Expected\n %s, got\n %s", string(exp), string(res))
 			}
 		})
+	}
+}
+
+// TestMergeDeprecated_preserveSubtreeAcrossMigrations simulates: migration 1 introduces
+// webrtc.rtc; the user then adds unknown keys; migrations 2..N only carry rtc_deprecated
+// (no rtc template) so the whole subtree is left untouched.
+func TestMergeDeprecated_preserveSubtreeAcrossMigrations(t *testing.T) {
+	// Migration 1: introduce defaults.
+	afterV1 := Merge(map[string]interface{}{
+		"vcs": map[string]interface{}{
+			"tcp": map[string]interface{}{"port": 8059},
+			"webrtc": map[string]interface{}{
+				"rtc": map[string]interface{}{
+					"port_range_start":           50000,
+					"port_range_end":             60000,
+					"allow_tcp_fallback":         true,
+					"tcp_fallback_rtt_threshold": 150,
+				},
+			},
+		},
+	}, map[string]interface{}{})
+
+	// User customizes rtc after v1 (unknown keys + changed value).
+	userCfg := deepCopyMap(afterV1)
+	rtc := userCfg["vcs"].(map[string]interface{})["webrtc"].(map[string]interface{})["rtc"].(map[string]interface{})
+	rtc["port_range_start"] = 51000
+	rtc["user_ice_servers"] = []interface{}{"stun:custom.example"}
+	rtc["vendor"] = map[string]interface{}{"flag": "on"}
+
+	// Later migrations: change tcp via replace, add new keys, preserve rtc via deprecated-only marker.
+	laterMigration := map[string]interface{}{
+		"vcs": map[string]interface{}{
+			"tcp": map[string]interface{}{
+				"port_deprecated_replace": "",
+				"port":                    9000,
+			},
+			"webrtc": map[string]interface{}{
+				"rtc_deprecated": "vcs.webrtc.rtc",
+			},
+			"recording": map[string]interface{}{
+				"filepath_prefix": "records",
+			},
+		},
+	}
+
+	cfg := userCfg
+	for i := 0; i < 3; i++ {
+		cfg = Merge(deepCopyMap(laterMigration), cfg)
+	}
+
+	// Migration that adds a new field into rtc while keeping user keys.
+	cfg = Merge(map[string]interface{}{
+		"vcs": map[string]interface{}{
+			"tcp": map[string]interface{}{
+				"port_deprecated_replace": "",
+				"port":                    9000,
+			},
+			"webrtc": map[string]interface{}{
+				"rtc_deprecated": "vcs.webrtc.rtc",
+				"rtc": map[string]interface{}{
+					"new_setting": false,
+				},
+			},
+			"recording": map[string]interface{}{
+				"filepath_prefix": "records",
+			},
+		},
+	}, cfg)
+
+	vcs := cfg["vcs"].(map[string]interface{})
+	if vcs["tcp"].(map[string]interface{})["port"] != 9000 {
+		t.Errorf("tcp.port should follow later migrations via replace, got %v", vcs["tcp"])
+	}
+	if _, ok := vcs["recording"]; !ok {
+		t.Error("recording should be added by later migrations")
+	}
+
+	gotRTC := vcs["webrtc"].(map[string]interface{})["rtc"].(map[string]interface{})
+	if gotRTC["port_range_start"] != 51000 {
+		t.Errorf("user port_range_start lost: %v", gotRTC["port_range_start"])
+	}
+	if gotRTC["user_ice_servers"] == nil {
+		t.Error("user_ice_servers should be preserved across later migrations")
+	}
+	vendor, ok := gotRTC["vendor"].(map[string]interface{})
+	if !ok || vendor["flag"] != "on" {
+		t.Errorf("user nested vendor map lost: %v", gotRTC["vendor"])
+	}
+	if gotRTC["new_setting"] != false {
+		t.Errorf("new_setting should be added, got %v", gotRTC["new_setting"])
+	}
+	if _, exists := gotRTC["rtc_deprecated"]; exists {
+		t.Error("rtc_deprecated marker must be stripped from result")
 	}
 }
 
